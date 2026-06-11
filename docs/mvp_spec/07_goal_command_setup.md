@@ -68,10 +68,33 @@
 /goal docs/mvp_spec를 따라 M5(설정·Android·시연)를 구현한다. 완료 조건: (1) 03의 Privacy(block/unblock/report) 엔드포인트가 curl로 2xx 동작함을 보여주고, (2) 05_android_and_demo의 android/ WebView 프로젝트 파일(MainActivity.kt·AndroidManifest.xml 권한/cleartext/딥링크)과 scripts/start.sh·tunnel.sh를 생성한다. 실기기 ngrok 시연은 수동이므로 코드/설정 산출물 존재까지만 조건으로 한다. 또는 25턴 후 중단.
 ```
 
-### (선택) M0~M2 한 번에
+---
+
+## 1.5 덩이로 끊어 돌리기 (권장)
+
+> 마일스톤을 하나씩 돌리기 번거로우면 **2~3덩이**로 묶어 돌린다. 한 덩이 끝나면 확인 후 다음.
+> 처음부터 짓는 규모라 토대(데이터모델·매칭) 오류를 일찍 잡기 위해 원샷보다 이 방식을 권장한다.
+
+### 덩이 A — M0~M2 (토대 + 매칭)
 ```
-/goal docs/mvp_spec의 M0~M2를 구현한다. 완료 조건: 로컬에서 서버 기동 후, 게스트 가입→반려동물 등록→산책 시작→근처 표시→매칭 요청→수락→종료→매칭 로그까지를 curl 스크립트로 한 번에 통과함을 실행 로그로 보여준다. 또는 60턴 후 중단.
+/goal docs/mvp_spec(00~03)를 따라 blip MVP의 M0~M2를 구현한다. 01의 디렉터리 구조, 02의 users·pets·walk_sessions·match_* 스키마, 03의 Auth·Pets·Walks·Nearby·Matches를 따르고, 게스트토큰·폴링·SQLite·앱레벨 Haversine 원칙을 지킨다. 완료 조건: uvicorn server.main:app로 서버가 에러 없이 기동되고, 단일 curl 스모크 스크립트로 (1) GET / 가 SPA 셸 HTML 200, (2) 게스트가입→반려동물 등록·조회·수정 2xx, (3) 사용자 A·B 산책 시작→A의 nearby 응답에 B가 대략적 위치로 표시, (4) A→B match-request→B accept→match-session→end→match-log 생성까지 한 번에 통과함을 실행 로그로 보여준다. 또는 60턴 후 중단.
 ```
+
+### 덩이 B — M3~M4 (기록·2초 클립·퀘스트 + 방)
+```
+/goal docs/mvp_spec를 따라 blip MVP의 M3~M4를 구현한다(M0~M2는 구현되어 있다고 가정하되, 없으면 먼저 만든다). 02의 records·clips·quest_*·daily_quests·rooms·room_members·reactions, 03의 Records·Clips·Quests·Rooms·Reactions, 06의 퀘스트 seed를 따른다. 완료 조건: 서버 기동(startup seed 적재) 후 단일 curl 스크립트로 (1) 퀘스트 후보 3개 조회→select(lock), (2) 더미 webm으로 clip 업로드 201→record 저장(클립 연결)→GET /api/records 에 노출, (3) 사용자 A가 방 생성(6자리 join_code)→GET /api/rooms/code/{code}→B가 join→B가 visibility=room 으로 record 공유→A가 reaction 토글→GET /api/rooms/{id} 타임라인에 기록·반응이 노출까지 한 번에 통과함을 실행 로그로 보여준다. 또는 70턴 후 중단.
+```
+
+### 덩이 C — M5 (설정·Android·시연)
+```
+/goal docs/mvp_spec를 따라 blip MVP의 M5(설정·Android·시연)를 구현한다. 완료 조건: (1) 03의 Privacy(block/unblock/report) 엔드포인트가 curl로 2xx 동작함을 실행 로그로 보여주고, (2) 05_android_and_demo를 따라 android/ WebView 프로젝트 파일(MainActivity.kt·AndroidManifest.xml 권한/cleartext/딥링크)과 scripts/start.sh·tunnel.sh가 생성돼 있다. 실기기 ngrok 시연은 수동이므로 코드/설정 산출물 존재까지를 조건으로 한다. 또는 30턴 후 중단.
+```
+
+### (선택) 원샷 — M0~M5 한 번에
+```
+/goal docs/mvp_spec(00~07) 전체를 따라 blip MVP를 M0부터 M5까지 구현한다. 데이터모델은 02, API는 03, 프론트는 04, Android/시연은 05, 퀘스트 seed는 06을 따르고, 게스트토큰·폴링·SQLite·앱레벨 Haversine 원칙을 지킨다. 완료 조건: uvicorn으로 서버 기동(startup seed 적재) 후, 단일 curl 스모크 스크립트로 다음을 한 번에 통과함을 실행 로그로 보여준다 — (1) 게스트가입→반려동물 등록, (2) 사용자 A·B 산책 시작→nearby에 서로 표시, (3) match-request→accept→end→match-log, (4) 퀘스트 후보→select(lock), (5) 더미 webm clip 업로드→record 저장→records 목록 노출, (6) 방 생성→코드로 B join→방에 record 공유→reaction 토글→방 타임라인 확인, (7) privacy block/report 2xx. 추가로 android/ WebView 스캐폴드와 scripts/start.sh·tunnel.sh 파일이 생성돼 있다. 또는 120턴 후 중단.
+```
+> 자동 진행은 편하지만 평가기는 대화에 드러난 것만 판정 → 범위가 크면 조기 종료·표류 위험. 막히면 `/goal clear` 후 수동으로 잡고 재개.
 
 ---
 
