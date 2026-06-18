@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>스냅챌</title>
+<style>
+/* ─── 기본 리셋 ─── */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; background: #0d0d0d; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; color: #f0f0f0; }
+:root {
+  --primary: #ff6b3d;
+  --primary-light: #3d2018;
+  --bg: #0d0d0d;
+  --card: #181818;
+  --text: #f0f0f0;
+  --muted: #555;
+  --border: #222;
+  --danger: #ef5350;
+  --success: #4caf50;
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+  --radius: 14px;
+}
+
+/* ─── 앱 컨테이너 ─── */
+#app { height: 100vh; position: relative; overflow: hidden; }
+.screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: none; flex-direction: column; overflow: hidden; }
+.screen.active { display: flex; }
+
+/* ─── 공통 헤더 ─── */
+.header { padding: 52px 16px 12px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.header h1 { font-size: 1.1rem; font-weight: 700; color: var(--text); flex: 1; }
+.back-btn { width: 34px; height: 34px; border: none; background: #1a1a1a; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #aaa; }
+.back-btn:active { background: #2a2a2a; }
+
+/* ─── 스크롤 콘텐츠 ─── */
+.content { flex: 1; overflow-y: auto; padding: 0 16px 32px; -webkit-overflow-scrolling: touch; }
+
+/* ─── 버튼 ─── */
+.btn { display: block; width: 100%; padding: 15px; border: none; border-radius: var(--radius); font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: opacity 0.15s, transform 0.1s; letter-spacing: 0.2px; }
+.btn:active { opacity: 0.75; transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-outline { background: transparent; border: 1.5px solid #333; color: #aaa; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-ghost { background: #1a1a1a; color: #666; border: 1px solid #222; }
+.btn + .btn { margin-top: 10px; }
+
+/* ─── 입력 ─── */
+.input-group { margin-bottom: 16px; }
+.input-label { font-size: 0.78rem; color: #555; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.input { width: 100%; padding: 14px 16px; border: 1.5px solid #222; border-radius: var(--radius); font-size: 1rem; background: #151515; color: #f0f0f0; outline: none; transition: border-color 0.2s; }
+.input:focus { border-color: var(--primary); }
+.input::placeholder { color: #333; }
+
+/* ─── 카드 ─── */
+.card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 12px; }
+
+/* ─── 모드 선택 ─── */
+.mode-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.mode-btn { padding: 18px 12px; border: 1.5px solid #222; border-radius: var(--radius); background: #151515; cursor: pointer; text-align: center; transition: all 0.2s; }
+.mode-btn.selected { border-color: var(--primary); background: rgba(255,107,61,0.1); }
+.mode-emoji { font-size: 1.8rem; display: block; margin-bottom: 8px; }
+.mode-label { font-size: 0.88rem; font-weight: 600; color: #bbb; }
+
+/* ─── 시작 화면 ─── */
+#screen-start { justify-content: center; align-items: center; background: #0d0d0d; }
+.start-logo { text-align: center; margin-bottom: 56px; }
+.start-logo .emoji { font-size: 3rem; display: block; margin-bottom: 16px; opacity: 0.9; }
+.start-logo h1 { font-size: 2.6rem; font-weight: 900; color: #fff; letter-spacing: -1px; }
+.start-logo p { color: #444; margin-top: 10px; font-size: 0.85rem; letter-spacing: 0.3px; }
+.start-buttons { width: 100%; padding: 0 28px; }
+
+/* ─── 참여 코드 표시 ─── */
+.code-display { background: #111; border: 1px solid #222; border-radius: var(--radius); padding: 24px; text-align: center; margin-bottom: 20px; }
+.code-label { font-size: 0.78rem; color: #555; font-weight: 600; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.code-value { font-size: 2.4rem; font-weight: 900; letter-spacing: 10px; color: #fff; font-variant-numeric: tabular-nums; }
+.invite-url { font-size: 0.78rem; color: #333; word-break: break-all; margin-top: 10px; }
+
+/* ─── 오늘 로그 화면 (셋로그 스타일 다크 세로 타임라인) ─── */
+#screen-log { background: #0d0d0d; }
+.log-header { padding: 52px 16px 10px; flex-shrink: 0; background: #0d0d0d; border-bottom: 1px solid #1c1c1c; }
+.log-date-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.log-date { font-size: 0.78rem; color: #555; font-weight: 500; letter-spacing: 0.3px; }
+.log-quest-title { font-size: 0.95rem; font-weight: 700; color: #fff; margin-top: 2px; }
+.log-no-quest { font-size: 0.85rem; color: #444; font-style: italic; }
+.header-actions { display: flex; gap: 6px; }
+.icon-btn { width: 32px; height: 32px; border: none; background: #1c1c1c; border-radius: 50%; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #aaa; }
+.icon-btn:active { transform: scale(0.9); background: #2a2a2a; }
+
+/* ─── 셋로그 스타일 카드 타임라인 ─── */
+.log-timeline {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.log-timeline::-webkit-scrollbar { display: none; }
+
+.setlog-hour-page {
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-align: start;
+  padding: 14px 0 88px;
+}
+
+.setlog-hour-title {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 14px 10px;
+  padding: 8px 0 10px;
+  background: linear-gradient(#0d0d0d 76%, rgba(13,13,13,0));
+  color: #5e5e5e;
+  font-size: 1.55rem;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.setlog-hour-title.current { color: var(--primary); }
+
+/* 유저 카드 */
+.setlog-card {
+  margin: 0 14px 14px;
+  background: #181818;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 14px rgba(0,0,0,0.4);
+}
+
+.setlog-card.current-slot {
+  box-shadow: 0 0 0 2px rgba(255,107,61,0.65), 0 2px 14px rgba(0,0,0,0.4);
+}
+
+.setlog-card-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px 4px;
+  gap: 10px;
+}
+
+.setlog-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.setlog-avatar.me { background: #3a3a3a; border: 2px solid var(--primary); }
+
+.setlog-card-name {
+  font-size: 0.93rem;
+  font-weight: 700;
+  color: #ddd;
+  flex: 1;
+}
+
+/* 가로 영상 스트립 */
+.setlog-clips-strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 10px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+}
+.setlog-clips-strip::-webkit-scrollbar { display: none; }
+
+/* 개별 클립 셀 */
+.setlog-clip {
+  flex-shrink: 0;
+  width: 95px;
+  aspect-ratio: 9 / 16;
+  border-radius: 13px;
+  overflow: hidden;
+  position: relative;
+  background: #111;
+  cursor: pointer;
+  scroll-snap-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.setlog-clip.current-slot { box-shadow: 0 0 0 2.5px var(--primary); }
+
+.setlog-clip video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 시간 라벨 */
+.setlog-slot-label {
+  position: absolute;
+  top: 6px; left: 0; right: 0;
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+  pointer-events: none;
+}
+.setlog-slot-label.current { color: var(--primary); }
+
+/* 반응 이모지 */
+.setlog-clip-reaction {
+  position: absolute;
+  bottom: 5px; right: 5px;
+  font-size: 0.9rem;
+  line-height: 1;
+  z-index: 2;
+}
+
+/* 촬영 유도 셀 */
+.setlog-clip-record-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #0d0d0d;
+  border: 1.5px dashed #2e2e2e;
+}
+
+/* 빈 슬롯 */
+.setlog-clip-empty { background: #0f0f0f; }
+
+.setlog-landscape-slot {
+  margin: 8px 16px 16px;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  background: #101010;
+  cursor: pointer;
+}
+
+.setlog-landscape-slot video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.setlog-landscape-slot.empty,
+.setlog-landscape-slot.record {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setlog-landscape-slot.record {
+  background: #111;
+  border: 1.5px dashed #333;
+}
+
+.setlog-landscape-time {
+  color: rgba(255,255,255,0.16);
+  font-size: 2.15rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.setlog-record-pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #f5f5f5;
+  color: #222;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+/* 바텀 탭 (다크 모드) */
+.bottom-tab { background: #0d0d0d; border-top: 1px solid #1c1c1c; }
+.tab-item { color: #444; }
+.tab-item.active { color: var(--primary); }
+
+/* ─── 퀘스트 선택 화면 ─── */
+.quest-card { background: #151515; border-radius: var(--radius); padding: 18px; margin-bottom: 10px; border: 1.5px solid #222; cursor: pointer; transition: all 0.2s; }
+.quest-card:active, .quest-card.selected { border-color: var(--primary); background: rgba(255,107,61,0.07); }
+.quest-card-title { font-size: 1rem; font-weight: 700; color: #f0f0f0; margin-bottom: 6px; }
+.quest-card-desc { font-size: 0.85rem; color: #555; line-height: 1.55; }
+.quest-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.quest-tag { font-size: 0.72rem; padding: 3px 8px; background: rgba(255,107,61,0.15); color: var(--primary); border-radius: 10px; font-weight: 600; }
+
+/* ─── 촬영 전 미션 화면 ─── */
+#screen-mission { background: #1a1a2e; color: #fff; justify-content: center; align-items: center; text-align: center; cursor: pointer; }
+.mission-content { padding: 40px 32px; }
+.mission-quest-label { font-size: 0.85rem; opacity: 0.6; margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase; }
+.mission-instruction { font-size: 1.8rem; font-weight: 800; line-height: 1.3; margin-bottom: 20px; }
+.mission-example { font-size: 0.9rem; opacity: 0.5; margin-bottom: 40px; }
+.mission-tap-hint { font-size: 0.9rem; opacity: 0.6; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+
+/* ─── 카메라 화면 ─── */
+#screen-camera { background: #000; position: relative; }
+#camera-preview { width: 100%; height: 100%; object-fit: cover; }
+.camera-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.camera-top { padding: 20px; color: #fff; font-size: 0.9rem; opacity: 0.8; }
+.camera-bottom { margin-top: auto; padding: 40px 20px; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 20px; }
+.record-btn { width: 80px; height: 80px; border-radius: 50%; border: 5px solid #fff; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; transition: all 0.2s; }
+.record-btn-inner { width: 60px; height: 60px; border-radius: 50%; background: var(--primary); transition: all 0.3s; }
+.record-btn.recording .record-btn-inner { border-radius: 8px; width: 40px; height: 40px; background: var(--danger); }
+.countdown { font-size: 3rem; font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+.progress-bar-container { width: 100%; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+.progress-bar { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.1s linear; width: 0%; }
+
+/* ─── 업로드 화면 ─── */
+#screen-upload { justify-content: center; align-items: center; background: var(--bg); }
+.upload-content { text-align: center; padding: 40px 32px; }
+.upload-icon { font-size: 4rem; margin-bottom: 20px; }
+.upload-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+.upload-desc { font-size: 0.9rem; color: var(--muted); margin-bottom: 32px; }
+.spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── 영상 보기 ─── */
+#screen-video { background: #000; }
+#video-player { width: 100%; height: 100%; object-fit: contain; }
+.video-controls { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; background: linear-gradient(transparent, rgba(0,0,0,0.8)); display: flex; align-items: center; justify-content: space-between; }
+.video-info { color: #fff; }
+.video-name { font-size: 1rem; font-weight: 600; }
+.video-time { font-size: 0.8rem; opacity: 0.7; margin-top: 2px; }
+.emoji-btns { display: flex; gap: 8px; }
+.emoji-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.2); font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+.emoji-btn:active { transform: scale(1.3); }
+.video-delete-btn { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; padding: 8px 14px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; }
+
+/* ─── 캘린더 ─── */
+.calendar { background: #111; border-radius: var(--radius); border: 1px solid #1e1e1e; overflow: hidden; margin-bottom: 20px; }
+.calendar-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #1e1e1e; }
+.cal-nav { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; color: #888; }
+.cal-nav:active { background: #222; }
+.cal-month { font-weight: 700; font-size: 0.95rem; color: #ddd; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-day-label { text-align: center; padding: 10px 0; font-size: 0.72rem; color: #444; font-weight: 600; }
+.cal-day { text-align: center; padding: 8px 0; font-size: 0.88rem; cursor: pointer; position: relative; color: #bbb; }
+.cal-day.today { font-weight: 700; color: var(--primary); }
+.cal-day.has-log::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--primary); }
+.cal-day.selected { background: rgba(255,107,61,0.2); border-radius: 50%; }
+.cal-day.empty { cursor: default; color: #2a2a2a; }
+
+/* ─── 설정 화면 ─── */
+.settings-section { margin-bottom: 24px; }
+.settings-title { font-size: 0.72rem; color: #444; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; padding: 0 4px; }
+.settings-item { background: #151515; border-radius: var(--radius); padding: 15px 18px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #1e1e1e; cursor: pointer; }
+.settings-item:active { opacity: 0.65; }
+.settings-item-label { font-size: 0.92rem; font-weight: 500; color: #ddd; }
+.settings-item-value { font-size: 0.85rem; color: #444; }
+.settings-item-arrow { color: #333; font-size: 1rem; }
+
+/* ─── 퀘스트 관리 ─── */
+.quest-manage-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); border-left: 4px solid var(--primary); }
+.quest-manage-title { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.quest-manage-mode { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+.quest-toggle { display: flex; align-items: center; justify-content: space-between; }
+.toggle-switch { position: relative; width: 44px; height: 24px; }
+.toggle-switch input { display: none; }
+.toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 12px; transition: 0.2s; cursor: pointer; }
+.toggle-slider::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+.toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+/* ─── 토스트 ─── */
+.toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 24px; border-radius: 24px; font-size: 0.9rem; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 9999; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ─── 오류 화면 ─── */
+.error-box { background: #fff3f3; border: 2px solid #ffcdd2; border-radius: var(--radius); padding: 20px; text-align: center; margin: 20px 0; }
+.error-icon { font-size: 2.5rem; display: block; margin-bottom: 12px; }
+.error-title { font-size: 1.1rem; font-weight: 700; color: var(--danger); margin-bottom: 6px; }
+.error-desc { font-size: 0.9rem; color: var(--muted); }
+
+/* ─── 바텀 탭 ─── */
+.bottom-tab { position: absolute; bottom: 0; left: 0; right: 0; background: #0a0a0a; border-top: 1px solid #1a1a1a; display: flex; padding: 10px 0 20px; z-index: 10; }
+.tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; cursor: pointer; transition: color 0.2s; color: #333; border: none; background: none; }
+.tab-item.active { color: #fff; }
+.tab-icon { font-size: 1.1rem; line-height: 1; }
+.tab-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+
+/* ─── 공유 화면 ─── */
+.share-preview { background: #1a1a2e; border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; position: relative; aspect-ratio: 9/16; max-height: 300px; }
+.share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 100%; }
+.share-cell { background: #2d2d2d; position: relative; overflow: hidden; }
+.share-cell video { width: 100%; height: 100%; object-fit: cover; }
+.share-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 8px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); color: #fff; font-size: 0.7rem; font-weight: 600; }
+.share-badge { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(255,112,67,0.9); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+
+/* ─── 반응형 ─── */
+@media (max-width: 375px) {
+  .mission-instruction { font-size: 1.5rem; }
+  .code-value { font-size: 2rem; letter-spacing: 5px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ─── S-001 시작 화면 ─── -->
+  <div id="screen-start" class="screen">
+    <div class="start-logo">
+      <span class="emoji">📸</span>
+      <h1>스냅챌</h1>
+      <p>하루 퀘스트로 찍는 2초 로그</p>
+    </div>
+    <div class="start-buttons">
+      <button class="btn btn-primary" onclick="showScreen('screen-create')">방 만들기</button>
+      <button class="btn btn-outline" onclick="showScreen('screen-join-code')">참여 코드 입력</button>
+    </div>
+  </div>
+
+  <!-- ─── S-002 방 만들기 화면 ─── -->
+  <div id="screen-create" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screen-start')">←</button>
+      <h1>새 방 만들기</h1>
+    </div>
+    <div class="content">
+      <div class="input-group">
+        <div class="input-label">방 이름</div>
+        <input class="input" id="room-name" placeholder="우리들의 방" maxlength="20">
+      </div>
+      <div class="input-group">
+        <div class="input-label">모드 선택</div>
+        <div class="mode-select">
+          <div class="mode-btn selected" id="mode-friend" onclick="selectMode('friend')">
+            <span class="mode-emoji">👥</span>
+            <span class="mode-label">친구 모드</span>
+          </div>
+          <div class="mode-btn" id="mode-couple" onclick="selectMode('couple')">
+            <span class="mode-emoji">💕</span>
+            <span class="mode-label">커플 모드</span>
+          </div>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">내 이름</div>
+        <input class="input" id="create-display-name" placeholder="홍길동">
+      </div>
+      <button class="btn btn-primary" onclick="createRoom()">방 만들기</button>
+    </div>
+  </div>
+
+  <!-- ─── S-003 초대/공유 화면 ─── -->
+  <div id="screen-share-invite" class="screen">
+    <div class="header">
+      <h1>친구 초대하기</h1>
+    </div>
+    <div class="content">
+      <div class="card" style="margin-bottom:20px;">
+        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">참여 코드</div>
+        <div class="code-value" id="invite-code-display"></div>
+        <div class="invite-url" id="invite-url-display"></div>
+      </div>
+      <button class="btn btn-primary" onclick="copyCode()">📋 참여 코드 복사</button>
+      <button class="btn btn-outline" onclick="shareInvite()">🔗 초대 링크 공유</button>
+      <button class="btn btn-ghost" onclick="goToLog()" style="margin-top:24px;">로그 보러 가기 →</button>
+    </div>
+  </div>
+
+  <!-- ─── S-004 참여 코드 입력 화면 ─── -->
+  <div id="screen-join-code" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screen-start')">←</button>
+      <h1>참여 코드 입력</h1>
+    </div>
+    <div class="content">
+      <div class="input-group" style="margin-top:20px;">
+        <div class="input-label">6자리 참여 코드</div>
+        <input class="input" id="join-code-input" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      <div id="join-code-error" style="color:var(--danger);font-size:0.9rem;margin-bottom:16px;display:none;"></div>
+      <button class="btn btn-primary" onclick="submitJoinCode()">참여하기</button>
+    </div>
+  </div>
+
+  <!-- ─── S-005 프로필 이름 입력 화면 ─── -->
+  <div id="screen-profile" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screen-join-code')">←</button>
+      <h1>내 이름 입력</h1>
+    </div>
+    <div class="content">
+      <div class="card" style="margin:20px 0;text-align:center;">
+        <div style="font-size:1.5rem;margin-bottom:8px;">🏠</div>
+        <div style="font-weight:700;font-size:1.1rem;" id="join-room-name"></div>
+        <div style="font-size:0.85rem;color:var(--muted);margin-top:4px;" id="join-room-mode"></div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">내 이름</div>
+        <input class="input" id="join-display-name" placeholder="홍길동">
+      </div>
+      <button class="btn btn-primary" onclick="joinRoom()">방 참여하기</button>
+    </div>
+  </div>
+
+  <!-- ─── S-006 오늘 로그 화면 (셋로그 스타일) ─── -->
+  <div id="screen-log" class="screen">
+    <div class="log-header">
+      <div class="log-date-row">
+        <span class="log-date" id="log-date-display"></span>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="showShareScreen()" title="저장/공유">↑</button>
+          <button class="icon-btn" onclick="showScreen('screen-calendar')" title="캘린더">☰</button>
+          <button class="icon-btn" onclick="showScreen('screen-settings')" title="설정">⋯</button>
+        </div>
+      </div>
+      <div id="log-quest-title" class="log-quest-title"></div>
+    </div>
+    <!-- 세로 타임라인 (셋로그 스타일) -->
+    <div class="log-timeline" id="log-timeline"></div>
+    <div class="bottom-tab">
+      <button class="tab-item active" onclick="refreshLog()">
+        <span class="tab-icon">◎</span>
+        <span class="tab-label">오늘</span>
+      </button>
+      <button class="tab-item" onclick="checkAndRecord()">
+        <span class="tab-icon">●</span>
+        <span class="tab-label">촬영</span>
+      </button>
+      <button class="tab-item" onclick="showShareScreen()">
+        <span class="tab-icon">↑</span>
+        <span class="tab-label">공유</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── S-007 퀘스트 선택 화면 ─── -->
+  <div id="screen-quest-select" class="screen">
+    <div class="header">
+      <h1>오늘의 퀘스트 선택</h1>
+    </div>
+    <div class="content">
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:20px;">당신이 오늘의 첫 접근자예요!<br>퀘스트를 선택해주세요 👑</p>
+      <div id="quest-candidates"></div>
+      <button class="btn btn-primary" id="quest-confirm-btn" onclick="confirmQuestSelection()" style="display:none;margin-top:20px;">이 퀘스트로 시작!</button>
+    </div>
+  </div>
+
+  <!-- ─── S-008 촬영 직전 미션 화면 ─── -->
+  <div id="screen-mission" class="screen" onclick="goToCamera()">
+    <div class="mission-content">
+      <div class="mission-quest-label" id="mission-quest-label"></div>
+      <div class="mission-instruction" id="mission-instruction"></div>
+      <div class="mission-example" id="mission-example"></div>
+      <div class="mission-tap-hint">화면을 탭하면 촬영 시작 📹</div>
+    </div>
+  </div>
+
+  <!-- ─── S-009 카메라 촬영 화면 ─── -->
+  <div id="screen-camera" class="screen">
+    <video id="camera-preview" autoplay playsinline muted></video>
+    <div class="camera-overlay">
+      <div class="camera-top">
+        <button onclick="closeCamera()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;">✕ 취소</button>
+      </div>
+      <div class="camera-bottom">
+        <div class="countdown" id="countdown-display" style="display:none;"></div>
+        <div class="progress-bar-container" style="width:80%;">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <button class="record-btn" id="record-btn" onclick="startRecording()">
+          <div class="record-btn-inner"></div>
+        </button>
+        <div style="color:rgba(255,255,255,0.6);font-size:0.85rem;">2초 영상 촬영</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── S-010 업로드 화면 ─── -->
+  <div id="screen-upload" class="screen">
+    <div class="upload-content">
+      <div id="upload-spinner" class="spinner"></div>
+      <div class="upload-icon" id="upload-icon" style="display:none;"></div>
+      <div class="upload-title" id="upload-title">업로드 중...</div>
+      <div class="upload-desc" id="upload-desc">잠깐만 기다려주세요</div>
+      <button class="btn btn-primary" id="upload-retry-btn" style="display:none;" onclick="retryUpload()">다시 업로드</button>
+      <button class="btn btn-ghost" id="upload-back-btn" style="display:none;" onclick="goToLog()">로그로 돌아가기</button>
+    </div>
+  </div>
+
+  <!-- ─── S-011 영상 보기 화면 ─── -->
+  <div id="screen-video" class="screen">
+    <video id="video-player" loop playsinline controls></video>
+    <div class="video-controls">
+      <div class="video-info">
+        <div class="video-name" id="video-participant-name"></div>
+        <div class="video-time" id="video-time-slot"></div>
+      </div>
+      <div class="emoji-btns">
+        <button class="emoji-btn" onclick="addReaction('❤️')">❤️</button>
+        <button class="emoji-btn" onclick="addReaction('😂')">😂</button>
+        <button class="emoji-btn" onclick="addReaction('🔥')">🔥</button>
+        <button class="emoji-btn" onclick="addReaction('👍')">👍</button>
+        <button class="emoji-btn" onclick="addReaction('😮')">😮</button>
+      </div>
+    </div>
+    <button class="back-btn" onclick="goToLog()" style="position:absolute;top:20px;left:20px;background:rgba(0,0,0,0.4);color:#fff;font-size:1.5rem;">←</button>
+    <button class="video-delete-btn" id="video-delete-btn" onclick="deleteCurrentVideo()" style="display:none;">🗑 삭제</button>
+  </div>
+
+  <!-- ─── S-013 저장/공유 화면 ─── -->
+  <div id="screen-share" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="goToLog()">←</button>
+      <h1>저장 / 공유</h1>
+    </div>
+    <div class="content">
+      <div class="card" style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:2rem;margin-bottom:8px;">📸</div>
+        <div style="font-weight:700;font-size:1rem;" id="share-quest-title"></div>
+        <div style="font-size:0.85rem;color:var(--muted);margin-top:4px;" id="share-date-display"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveLog()">📥 갤러리에 저장</button>
+      <button class="btn btn-outline" onclick="shareLog()">🔗 SNS 공유</button>
+      <button class="btn btn-ghost" onclick="goToLog()">로그로 돌아가기</button>
+    </div>
+  </div>
+
+  <!-- ─── S-014 캘린더 화면 ─── -->
+  <div id="screen-calendar" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="goToLog()">←</button>
+      <h1>캘린더</h1>
+    </div>
+    <div class="content">
+      <div class="calendar" id="calendar-widget"></div>
+      <div id="cal-log-info"></div>
+    </div>
+  </div>
+
+  <!-- ─── S-015 설정 화면 ─── -->
+  <div id="screen-settings" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="goToLog()">←</button>
+      <h1>설정</h1>
+    </div>
+    <div class="content">
+      <div class="settings-section">
+        <div class="settings-title">내 정보</div>
+        <div class="settings-item">
+          <span class="settings-item-label">내 이름</span>
+          <span class="settings-item-value" id="settings-my-name"></span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">참여 중인 방</span>
+          <span class="settings-item-value" id="settings-room-name"></span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">참여 코드</span>
+          <span class="settings-item-value" id="settings-join-code"></span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-title">방 관리</div>
+        <div class="settings-item" id="settings-quest-manage" onclick="showScreen('screen-quest-manage')" style="display:none;">
+          <span class="settings-item-label">퀘스트 관리</span>
+          <span class="settings-item-arrow">›</span>
+        </div>
+        <div class="settings-item" onclick="confirmLeaveRoom()" style="background:#fff3f3;">
+          <span class="settings-item-label" style="color:var(--danger);">방 나가기</span>
+          <span class="settings-item-arrow" style="color:var(--danger);">›</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:40px;color:var(--muted);font-size:0.8rem;">
+        스냅챌 MVP v1.0 · 알파팀 전용
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── S-016 숨겨진 퀘스트 관리 화면 ─── -->
+  <div id="screen-quest-manage" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screen-settings')">←</button>
+      <h1>퀘스트 관리</h1>
+    </div>
+    <div class="content">
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">MVP 관리용 화면. 퀘스트를 켜고 끌 수 있어요.</p>
+      <div id="quest-manage-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── 전역 상태 ───────────────────────────────────────────────────────────────
+const STATE = {
+  deviceId: null,
+  participantId: null,
+  roomId: null,
+  roomName: null,
+  roomMode: null,
+  joinCode: null,
+  displayName: null,
+  // 촬영 관련
+  currentHourSlot: null,
+  pendingMission: null,
+  cameraStream: null,
+  mediaRecorder: null,
+  recordedChunks: [],
+  recordedBlob: null,
+  // 로그 관련
+  todayLog: null,
+  logData: null,
+  selectedDate: null,
+  // 영상 관련
+  currentVideoClipId: null,
+  currentVideoParticipantId: null,
+  // 퀘스트
+  selectedQuestTemplateId: null,
+  calYear: null,
+  calMonth: null,
+};
+
+const API = '';  // 동일 서버
+
+// ─── 기기 ID ─────────────────────────────────────────────────────────────────
+function getOrCreateDeviceId() {
+  let id = localStorage.getItem('snapchal_device_id');
+  if (!id) {
+    id = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    localStorage.setItem('snapchal_device_id', id);
+  }
+  return id;
+}
+
+function saveSession() {
+  localStorage.setItem('snapchal_session', JSON.stringify({
+    participantId: STATE.participantId,
+    roomId: STATE.roomId,
+    roomName: STATE.roomName,
+    roomMode: STATE.roomMode,
+    joinCode: STATE.joinCode,
+    displayName: STATE.displayName,
+  }));
+}
+
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem('snapchal_session') || 'null');
+    if (s && s.participantId) {
+      Object.assign(STATE, s);
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function clearSession() {
+  localStorage.removeItem('snapchal_session');
+  STATE.participantId = null;
+  STATE.roomId = null;
+  STATE.roomName = null;
+  STATE.roomMode = null;
+  STATE.joinCode = null;
+  STATE.displayName = null;
+}
+
+// ─── 화면 전환 ────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+// ─── 토스트 ───────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── API 헬퍼 ─────────────────────────────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API + '/api' + path, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || '오류가 발생했어요');
+  }
+  return res.json();
+}
+
+// ─── 초기화 ───────────────────────────────────────────────────────────────────
+async function init() {
+  STATE.deviceId = getOrCreateDeviceId();
+  const today = new Date();
+  STATE.selectedDate = today.toISOString().split('T')[0];
+  STATE.calYear = today.getFullYear();
+  STATE.calMonth = today.getMonth();
+
+  if (loadSession()) {
+    await goToLog();
+  } else {
+    showScreen('screen-start');
+  }
+}
+
+// ─── 방 만들기 ─────────────────────────────────────────────────────────────────
+let selectedMode = 'friend';
+function selectMode(mode) {
+  selectedMode = mode;
+  document.getElementById('mode-friend').classList.toggle('selected', mode === 'friend');
+  document.getElementById('mode-couple').classList.toggle('selected', mode === 'couple');
+}
+
+async function createRoom() {
+  const name = document.getElementById('room-name').value.trim();
+  const displayName = document.getElementById('create-display-name').value.trim();
+  if (!name) return showToast('방 이름을 입력해주세요');
+  if (!displayName) return showToast('내 이름을 입력해주세요');
+
+  try {
+    const data = await apiFetch('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ name, mode: selectedMode, display_name: displayName, device_id: STATE.deviceId }),
+    });
+    STATE.participantId = data.participant_id;
+    STATE.roomId = data.room_id;
+    STATE.roomName = data.name;
+    STATE.roomMode = data.mode;
+    STATE.joinCode = data.join_code;
+    STATE.displayName = displayName;
+    saveSession();
+
+    document.getElementById('invite-code-display').textContent = data.join_code;
+    document.getElementById('invite-url-display').textContent = data.invite_url;
+    showScreen('screen-share-invite');
+  } catch (e) {
+    showToast(e.message || '방 만들기 실패');
+  }
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(STATE.joinCode).then(() => showToast('참여 코드 복사됨!'));
+}
+
+async function shareInvite() {
+  const text = `스냅챌에 초대합니다!\n참여 코드: ${STATE.joinCode}`;
+  if (navigator.share) {
+    await navigator.share({ title: '스냅챌 초대', text });
+  } else {
+    navigator.clipboard.writeText(text).then(() => showToast('초대 문구 복사됨!'));
+  }
+}
+
+// ─── 방 참여 ──────────────────────────────────────────────────────────────────
+let pendingRoomId = null;
+let pendingRoomMode = null;
+
+async function submitJoinCode() {
+  const code = document.getElementById('join-code-input').value.trim();
+  if (!code) return showToast('참여 코드를 입력해주세요');
+  const errEl = document.getElementById('join-code-error');
+
+  try {
+    const data = await apiFetch(`/rooms/code/${code}`);
+    pendingRoomId = data.room_id;
+    pendingRoomMode = data.mode;
+    document.getElementById('join-room-name').textContent = data.name;
+    document.getElementById('join-room-mode').textContent = data.mode === 'friend' ? '👥 친구 모드' : '💕 커플 모드';
+    errEl.style.display = 'none';
+    showScreen('screen-profile');
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function joinRoom() {
+  const displayName = document.getElementById('join-display-name').value.trim();
+  if (!displayName) return showToast('이름을 입력해주세요');
+
+  try {
+    const data = await apiFetch(`/rooms/${pendingRoomId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ display_name: displayName, device_id: STATE.deviceId }),
+    });
+    STATE.participantId = data.participant_id;
+    STATE.roomId = data.room_id;
+    STATE.roomName = data.room_name;
+    STATE.roomMode = data.mode;
+    STATE.displayName = data.display_name;
+    const room = await apiFetch(`/rooms/${STATE.roomId}`);
+    STATE.joinCode = room.join_code;
+    saveSession();
+    await goToLog();
+  } catch (e) {
+    showToast(e.message || '참여 실패');
+  }
+}
+
+// ─── 로그 화면 ────────────────────────────────────────────────────────────────
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function currentHour() {
+  return `${String(new Date().getHours()).padStart(2,'0')}:00`;
+}
+
+function formatDateKo(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth()+1}월 ${d.getDate()}일 (${['일','월','화','수','목','금','토'][d.getDay()]})`;
+}
+
+async function goToLog() {
+  STATE.selectedDate = todayStr();
+  await loadLogScreen(STATE.selectedDate);
+}
+
+async function loadLogScreen(dateStr) {
+  showScreen('screen-log');
+  document.getElementById('log-date-display').textContent = formatDateKo(dateStr);
+
+  // 오늘인 경우 퀘스트 체크
+  if (dateStr === todayStr()) {
+    try {
+      const today = await apiFetch(`/rooms/${STATE.roomId}/today`);
+      if (!today.has_quest) {
+        // 첫 접근자 → 퀘스트 선택
+        await loadQuestCandidates();
+        return;
+      }
+      document.getElementById('log-quest-title').textContent = '🎯 ' + today.quest.title;
+    } catch (e) {
+      document.getElementById('log-quest-title').textContent = '';
+    }
+  }
+
+  await refreshLog(dateStr);
+}
+
+async function refreshLog(dateStr) {
+  dateStr = dateStr || STATE.selectedDate || todayStr();
+  try {
+    const data = await apiFetch(`/rooms/${STATE.roomId}/logs/${dateStr}`);
+    STATE.logData = data;
+
+    if (data.quest) {
+      document.getElementById('log-quest-title').textContent = data.quest.title;
+    } else {
+      document.getElementById('log-quest-title').textContent = dateStr === todayStr() ? '퀘스트 선택 중...' : '';
+    }
+
+    renderTimeline(data);
+  } catch (e) {
+    showToast('로그를 불러오지 못했어요');
+  }
+}
+
+// ─── 셋로그 스타일 카드 타임라인 렌더링 ─────────────────────────────────────
+function renderTimeline(data) {
+  const container = document.getElementById('log-timeline');
+  container.innerHTML = '';
+  const today = todayStr();
+  const isToday = STATE.selectedDate === today;
+  const nowHour = currentHour();
+
+  if (data.participants.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:60px 20px;color:#444;">
+        <div style="font-size:2rem;margin-bottom:12px;opacity:0.3;">○</div>
+        <div style="font-size:0.9rem;">아직 아무도 없어요</div>
+        <div style="font-size:0.8rem;margin-top:6px;color:#333;">친구를 초대해보세요</div>
+      </div>`;
+    return;
+  }
+
+  // 유저별 카드 생성
+  data.hour_slots.forEach(slot => {
+    const isCurrent = isToday && slot === nowHour;
+    const page = document.createElement('div');
+    page.className = 'setlog-hour-page';
+    page.dataset.slot = slot;
+
+    const hourTitle = document.createElement('div');
+    hourTitle.className = 'setlog-hour-title' + (isCurrent ? ' current' : '');
+    hourTitle.textContent = slot;
+    page.appendChild(hourTitle);
+
+    data.participants.forEach(participant => {
+      const isMe = participant.id === STATE.participantId;
+      const clip = data.clips[participant.id] && data.clips[participant.id][slot];
+
+      const card = document.createElement('div');
+      card.className = 'setlog-card' + (isCurrent ? ' current-slot' : '');
+
+      const header = document.createElement('div');
+      header.className = 'setlog-card-header';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'setlog-avatar' + (isMe ? ' me' : '');
+      avatar.textContent = participant.display_name.charAt(0);
+
+      const nameLine = document.createElement('div');
+      nameLine.className = 'setlog-card-name';
+      nameLine.textContent = participant.display_name;
+      if (isMe) {
+        const meBadge = document.createElement('span');
+        meBadge.textContent = '  ME';
+        meBadge.style.cssText = 'font-size:0.72rem;color:var(--primary);font-weight:600;';
+        nameLine.appendChild(meBadge);
+      }
+
+      header.appendChild(avatar);
+      header.appendChild(nameLine);
+      card.appendChild(header);
+
+      const cell = document.createElement('div');
+      cell.className = 'setlog-landscape-slot';
+
+      if (clip && clip.file_url) {
+        const vid = document.createElement('video');
+        vid.src = clip.file_url;
+        vid.loop = true;
+        vid.muted = true;
+        vid.autoplay = true;
+        vid.playsinline = true;
+        cell.appendChild(vid);
+
+        if (clip.reactions && clip.reactions.length > 0) {
+          const r = document.createElement('div');
+          r.className = 'setlog-clip-reaction';
+          r.textContent = clip.reactions[clip.reactions.length - 1].emoji;
+          cell.appendChild(r);
+        }
+
+        cell.onclick = () => openVideoViewer(clip, participant);
+      } else if (isMe && isToday && slot === nowHour) {
+        cell.classList.add('record');
+        const time = document.createElement('div');
+        time.className = 'setlog-landscape-time';
+        time.textContent = slot;
+        const recLabel = document.createElement('div');
+        recLabel.className = 'setlog-record-pill';
+        recLabel.textContent = '눌러서 촬영';
+        cell.appendChild(time);
+        cell.appendChild(recLabel);
+        cell.onclick = () => checkAndRecord(slot);
+      } else {
+        cell.classList.add('empty');
+        const time = document.createElement('div');
+        time.className = 'setlog-landscape-time';
+        time.textContent = slot;
+        cell.appendChild(time);
+      }
+
+      card.appendChild(cell);
+      page.appendChild(card);
+    });
+
+    container.appendChild(page);
+  });
+
+  if (isToday) {
+    const currentPage = container.querySelector(`.setlog-hour-page[data-slot="${nowHour}"]`);
+    if (currentPage) {
+      requestAnimationFrame(() => {
+        container.scrollLeft = currentPage.offsetLeft;
+      });
+    }
+  }
+  return;
+
+  data.participants.forEach(participant => {
+    const isMe = participant.id === STATE.participantId;
+
+    // ── 카드 컨테이너 ──
+    const card = document.createElement('div');
+    card.className = 'setlog-card';
+
+    // ── 카드 헤더: 아바타 + 이름 ──
+    const header = document.createElement('div');
+    header.className = 'setlog-card-header';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'setlog-avatar' + (isMe ? ' me' : '');
+    avatar.textContent = participant.display_name.charAt(0);
+
+    const nameLine = document.createElement('div');
+    nameLine.className = 'setlog-card-name';
+    nameLine.textContent = participant.display_name;
+    if (isMe) {
+      const meBadge = document.createElement('span');
+      meBadge.textContent = '  나';
+      meBadge.style.cssText = 'font-size:0.72rem;color:var(--primary);font-weight:600;';
+      nameLine.appendChild(meBadge);
+    }
+
+    header.appendChild(avatar);
+    header.appendChild(nameLine);
+    card.appendChild(header);
+
+    // ── 가로 영상 스트립 ──
+    const strip = document.createElement('div');
+    strip.className = 'setlog-clips-strip';
+
+    let currentSlotEl = null;
+
+    data.hour_slots.forEach(slot => {
+      const isCurrent = isToday && slot === nowHour;
+      const clip = data.clips[participant.id] && data.clips[participant.id][slot];
+
+      const cell = document.createElement('div');
+      cell.className = 'setlog-clip' + (isCurrent ? ' current-slot' : '');
+
+      // 시간 라벨
+      const slotLabel = document.createElement('div');
+      slotLabel.className = 'setlog-slot-label' + (isCurrent ? ' current' : '');
+      slotLabel.textContent = slot;
+      cell.appendChild(slotLabel);
+
+      if (clip && clip.file_url) {
+        // 영상 있음
+        const vid = document.createElement('video');
+        vid.src = clip.file_url;
+        vid.loop = true;
+        vid.muted = true;
+        vid.autoplay = true;
+        vid.playsinline = true;
+        cell.appendChild(vid);
+
+        if (clip.reactions && clip.reactions.length > 0) {
+          const r = document.createElement('div');
+          r.className = 'setlog-clip-reaction';
+          r.textContent = clip.reactions[clip.reactions.length - 1].emoji;
+          cell.appendChild(r);
+        }
+
+        cell.onclick = () => openVideoViewer(clip, participant);
+      } else if (isMe && isToday && slot === nowHour) {
+        // 내 현재 시간대 → 촬영 유도
+        cell.classList.add('setlog-clip-record-cell');
+        const recIcon = document.createElement('span');
+        recIcon.style.cssText = 'font-size:1.6rem;opacity:0.75;';
+        recIcon.textContent = '●';
+        const recLabel = document.createElement('div');
+        recLabel.style.cssText = 'font-size:0.65rem;color:#555;';
+        recLabel.textContent = '눌러서 촬영';
+        cell.appendChild(recIcon);
+        cell.appendChild(recLabel);
+        cell.onclick = () => checkAndRecord(slot);
+      } else {
+        // 빈 슬롯
+        cell.classList.add('setlog-clip-empty');
+      }
+
+      if (isCurrent) currentSlotEl = cell;
+      strip.appendChild(cell);
+    });
+
+    card.appendChild(strip);
+    container.appendChild(card);
+
+    // 현재 시간대 셀이 가로 스트립 중앙에 오도록 스크롤
+    if (currentSlotEl && isToday) {
+      requestAnimationFrame(() => {
+        const cellLeft = currentSlotEl.offsetLeft;
+        const stripW = strip.offsetWidth;
+        const cellW = currentSlotEl.offsetWidth;
+        strip.scrollLeft = cellLeft - stripW / 2 + cellW / 2;
+      });
+    }
+  });
+}
+
+// ─── 퀘스트 선택 ──────────────────────────────────────────────────────────────
+async function loadQuestCandidates() {
+  try {
+    const data = await apiFetch(`/rooms/${STATE.roomId}/quest-candidates`);
+    const container = document.getElementById('quest-candidates');
+    container.innerHTML = '';
+    STATE.selectedQuestTemplateId = null;
+    document.getElementById('quest-confirm-btn').style.display = 'none';
+
+    data.candidates.forEach(q => {
+      const card = document.createElement('div');
+      card.className = 'quest-card';
+      const tagHtml = q.tags.map(t => `<span class="quest-tag">${t}</span>`).join('');
+      card.innerHTML = `
+        <div class="quest-card-title">${q.title}</div>
+        <div class="quest-card-desc">${q.short_description}</div>
+        <div class="quest-tags">${tagHtml}</div>
+      `;
+      card.onclick = () => {
+        document.querySelectorAll('.quest-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        STATE.selectedQuestTemplateId = q.template_id;
+        document.getElementById('quest-confirm-btn').style.display = 'block';
+      };
+      container.appendChild(card);
+    });
+
+    showScreen('screen-quest-select');
+  } catch (e) {
+    showToast('퀘스트를 불러오지 못했어요');
+    await refreshLog(todayStr());
+  }
+}
+
+async function confirmQuestSelection() {
+  if (!STATE.selectedQuestTemplateId) return showToast('퀘스트를 선택해주세요');
+  try {
+    await apiFetch(`/rooms/${STATE.roomId}/quest`, {
+      method: 'POST',
+      body: JSON.stringify({ template_id: STATE.selectedQuestTemplateId, participant_id: STATE.participantId }),
+    });
+    showToast('퀘스트가 선택됐어요! 🎯');
+    await goToLog();
+  } catch (e) {
+    showToast(e.message || '퀘스트 선택 실패');
+  }
+}
+
+// ─── 촬영 ─────────────────────────────────────────────────────────────────────
+async function checkAndRecord(hourSlot) {
+  hourSlot = hourSlot || currentHour();
+  STATE.currentHourSlot = hourSlot;
+
+  // 오늘 로그 확인
+  try {
+    const today = await apiFetch(`/rooms/${STATE.roomId}/today`);
+    if (!today.has_quest) {
+      showToast('먼저 오늘의 퀘스트를 선택해주세요');
+      await loadQuestCandidates();
+      return;
+    }
+
+    // 미션 가져오기
+    const mission = await apiFetch(`/rooms/${STATE.roomId}/mission/${encodeURIComponent(hourSlot)}`);
+    STATE.pendingMission = { ...mission, daily_log_id: today.daily_log_id, daily_quest_id: today.quest.id };
+
+    document.getElementById('mission-quest-label').textContent = mission.quest_title;
+    document.getElementById('mission-instruction').textContent = mission.instruction;
+    document.getElementById('mission-example').textContent = mission.example ? `예시: ${mission.example}` : '';
+
+    showScreen('screen-mission');
+  } catch (e) {
+    showToast(e.message || '미션을 불러오지 못했어요');
+  }
+}
+
+async function goToCamera() {
+  showScreen('screen-camera');
+  try {
+    STATE.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+    document.getElementById('camera-preview').srcObject = STATE.cameraStream;
+  } catch (e) {
+    showToast('카메라 접근 권한이 필요해요');
+    goToLog();
+  }
+}
+
+function closeCamera() {
+  if (STATE.cameraStream) {
+    STATE.cameraStream.getTracks().forEach(t => t.stop());
+    STATE.cameraStream = null;
+  }
+  goToLog();
+}
+
+function startRecording() {
+  if (!STATE.cameraStream) return;
+  const btn = document.getElementById('record-btn');
+  btn.classList.add('recording');
+  btn.onclick = null;
+
+  STATE.recordedChunks = [];
+  const options = { mimeType: 'video/webm;codecs=vp8,opus' };
+  try {
+    STATE.mediaRecorder = new MediaRecorder(STATE.cameraStream, options);
+  } catch {
+    STATE.mediaRecorder = new MediaRecorder(STATE.cameraStream);
+  }
+
+  STATE.mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) STATE.recordedChunks.push(e.data);
+  };
+
+  STATE.mediaRecorder.onstop = () => {
+    STATE.recordedBlob = new Blob(STATE.recordedChunks, { type: 'video/webm' });
+    stopCameraAfterRecord();
+    uploadVideo();
+  };
+
+  STATE.mediaRecorder.start();
+
+  // 2초 카운트다운
+  const countdownEl = document.getElementById('countdown-display');
+  const progressEl = document.getElementById('progress-bar');
+  const DURATION = 2000;
+  const start = Date.now();
+
+  countdownEl.style.display = 'block';
+
+  const timer = setInterval(() => {
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, DURATION - elapsed);
+    countdownEl.textContent = (remaining / 1000).toFixed(1) + 's';
+    progressEl.style.width = Math.min(100, (elapsed / DURATION) * 100) + '%';
+
+    if (elapsed >= DURATION) {
+      clearInterval(timer);
+      if (STATE.mediaRecorder && STATE.mediaRecorder.state !== 'inactive') {
+        STATE.mediaRecorder.stop();
+      }
+    }
+  }, 50);
+}
+
+function stopCameraAfterRecord() {
+  if (STATE.cameraStream) {
+    STATE.cameraStream.getTracks().forEach(t => t.stop());
+    STATE.cameraStream = null;
+  }
+}
+
+async function uploadVideo() {
+  showScreen('screen-upload');
+  document.getElementById('upload-spinner').style.display = 'block';
+  document.getElementById('upload-icon').style.display = 'none';
+  document.getElementById('upload-title').textContent = '업로드 중...';
+  document.getElementById('upload-desc').textContent = '잠깐만 기다려주세요';
+  document.getElementById('upload-retry-btn').style.display = 'none';
+  document.getElementById('upload-back-btn').style.display = 'none';
+
+  const mission = STATE.pendingMission;
+  const formData = new FormData();
+  formData.append('room_id', STATE.roomId);
+  formData.append('participant_id', STATE.participantId);
+  formData.append('daily_log_id', mission.daily_log_id);
+  formData.append('daily_quest_id', mission.daily_quest_id);
+  formData.append('hour_slot', STATE.currentHourSlot);
+  formData.append('file', STATE.recordedBlob, 'clip.webm');
+
+  try {
+    const res = await fetch('/api/videos/upload', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '업로드 실패');
+    }
+    // 성공
+    document.getElementById('upload-spinner').style.display = 'none';
+    document.getElementById('upload-icon').style.display = 'block';
+    document.getElementById('upload-icon').textContent = '✅';
+    document.getElementById('upload-title').textContent = '업로드 완료!';
+    document.getElementById('upload-desc').textContent = '로그에서 영상을 확인해보세요';
+    document.getElementById('upload-back-btn').style.display = 'block';
+    setTimeout(() => goToLog(), 1500);
+  } catch (e) {
+    document.getElementById('upload-spinner').style.display = 'none';
+    document.getElementById('upload-icon').style.display = 'block';
+    document.getElementById('upload-icon').textContent = '❌';
+    document.getElementById('upload-title').textContent = '업로드에 실패했어요';
+    document.getElementById('upload-desc').textContent = e.message || '네트워크를 확인해주세요';
+    document.getElementById('upload-retry-btn').style.display = 'block';
+    document.getElementById('upload-back-btn').style.display = 'block';
+  }
+}
+
+function retryUpload() {
+  uploadVideo();
+}
+
+// ─── 영상 보기 ────────────────────────────────────────────────────────────────
+function openVideoViewer(clip, participant) {
+  STATE.currentVideoClipId = clip.id;
+  STATE.currentVideoParticipantId = participant.id;
+
+  const player = document.getElementById('video-player');
+  player.src = clip.file_url;
+  player.play();
+
+  document.getElementById('video-participant-name').textContent = participant.display_name;
+  document.getElementById('video-time-slot').textContent = clip.hour_slot + ' 로그';
+
+  // 내 영상 오늘 것만 삭제 버튼 표시
+  const isMe = participant.id === STATE.participantId;
+  const isToday = STATE.selectedDate === todayStr();
+  document.getElementById('video-delete-btn').style.display = (isMe && isToday) ? 'block' : 'none';
+
+  showScreen('screen-video');
+}
+
+async function addReaction(emoji) {
+  if (!STATE.currentVideoClipId) return;
+  try {
+    await apiFetch('/reactions', {
+      method: 'POST',
+      body: JSON.stringify({
+        video_clip_id: STATE.currentVideoClipId,
+        participant_id: STATE.participantId,
+        emoji,
+      }),
+    });
+    showToast(emoji + ' 반응!');
+  } catch (e) {
+    showToast('반응 저장 실패');
+  }
+}
+
+async function deleteCurrentVideo() {
+  if (!confirm('이 영상을 삭제할까요?')) return;
+  try {
+    await fetch(`/api/videos/${STATE.currentVideoClipId}?participant_id=${STATE.participantId}`, { method: 'DELETE' });
+    showToast('영상이 삭제됐어요');
+    goToLog();
+  } catch (e) {
+    showToast('삭제 실패');
+  }
+}
+
+// ─── 저장/공유 ────────────────────────────────────────────────────────────────
+function showShareScreen() {
+  const data = STATE.logData;
+  if (data && data.quest) {
+    document.getElementById('share-quest-title').textContent = '🎯 ' + data.quest.title;
+  } else {
+    document.getElementById('share-quest-title').textContent = '스냅챌 로그';
+  }
+  document.getElementById('share-date-display').textContent = formatDateKo(STATE.selectedDate || todayStr());
+  showScreen('screen-share');
+}
+
+async function saveLog() {
+  try {
+    await apiFetch(`/rooms/${STATE.roomId}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ participant_id: STATE.participantId, action_type: 'save' }),
+    });
+    showToast('📥 저장 기록 완료! (갤러리 저장은 기기에서 직접 해주세요)');
+  } catch (e) {}
+}
+
+async function shareLog() {
+  try {
+    await apiFetch(`/rooms/${STATE.roomId}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ participant_id: STATE.participantId, action_type: 'share' }),
+    });
+    const text = `스냅챌 로그 공유 🎯 ${STATE.logData?.quest?.title || ''}\n참여 코드: ${STATE.joinCode}`;
+    if (navigator.share) {
+      await navigator.share({ title: '스냅챌', text });
+    } else {
+      await navigator.clipboard.writeText(text);
+      showToast('공유 문구 복사됨!');
+    }
+  } catch (e) {
+    showToast('공유 실패');
+  }
+}
+
+// ─── 캘린더 ───────────────────────────────────────────────────────────────────
+function showCalendar() {
+  renderCalendar(STATE.calYear, STATE.calMonth);
+  showScreen('screen-calendar');
+}
+
+function renderCalendar(year, month) {
+  const widget = document.getElementById('calendar-widget');
+  const days = ['일','월','화','수','목','금','토'];
+  const monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+
+  let html = `
+    <div class="calendar-header">
+      <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+      <span class="cal-month">${year}년 ${monthNames[month]}</span>
+      <button class="cal-nav" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="calendar-grid">
+      ${days.map(d => `<div class="cal-day-label">${d}</div>`).join('')}
+      ${Array(firstDay).fill('<div class="cal-day empty"></div>').join('')}
+  `;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = (d === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+    const isSelected = dateStr === STATE.selectedDate;
+    html += `<div class="cal-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" onclick="selectCalDate('${dateStr}')">${d}</div>`;
+  }
+
+  html += '</div>';
+  widget.innerHTML = html;
+}
+
+function changeMonth(delta) {
+  STATE.calMonth += delta;
+  if (STATE.calMonth < 0) { STATE.calMonth = 11; STATE.calYear--; }
+  if (STATE.calMonth > 11) { STATE.calMonth = 0; STATE.calYear++; }
+  renderCalendar(STATE.calYear, STATE.calMonth);
+}
+
+async function selectCalDate(dateStr) {
+  STATE.selectedDate = dateStr;
+  document.getElementById('log-date-display').textContent = formatDateKo(dateStr);
+  await refreshLog(dateStr);
+  showScreen('screen-log');
+}
+
+// ─── 설정 ─────────────────────────────────────────────────────────────────────
+function showSettings() {
+  document.getElementById('settings-my-name').textContent = STATE.displayName || '';
+  document.getElementById('settings-room-name').textContent = STATE.roomName || '';
+  document.getElementById('settings-join-code').textContent = STATE.joinCode || '';
+
+  // 숨겨진 퀘스트 관리 (설정 헤더 5번 탭으로 진입)
+  document.getElementById('settings-quest-manage').style.display = 'flex';
+
+  showScreen('screen-settings');
+}
+
+function confirmLeaveRoom() {
+  if (confirm('방에서 나갈까요? 나간 뒤엔 이 방에서의 기록이 모두 숨겨져요.')) {
+    leaveRoom();
+  }
+}
+
+async function leaveRoom() {
+  try {
+    await apiFetch(`/rooms/${STATE.roomId}/leave`, {
+      method: 'POST',
+      body: JSON.stringify({ participant_id: STATE.participantId }),
+    });
+    clearSession();
+    showToast('방에서 나왔어요');
+    showScreen('screen-start');
+  } catch (e) {
+    showToast(e.message || '방 나가기 실패');
+  }
+}
+
+// ─── 퀘스트 관리 ──────────────────────────────────────────────────────────────
+async function loadQuestManage() {
+  try {
+    const templates = await apiFetch('/admin/quests');
+    const container = document.getElementById('quest-manage-list');
+    container.innerHTML = '';
+
+    const modeLabel = { friend: '👥 친구', couple: '💕 커플' };
+    templates.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'quest-manage-card';
+      div.innerHTML = `
+        <div class="quest-manage-title">${t.title}</div>
+        <div class="quest-manage-mode">${modeLabel[t.mode] || t.mode} · ${t.quest_id}</div>
+        <div class="quest-toggle">
+          <span style="font-size:0.85rem;color:var(--muted);">활성화</span>
+          <label class="toggle-switch">
+            <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="toggleQuest('${t.id}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  } catch (e) {
+    showToast('퀘스트 목록 불러오기 실패');
+  }
+}
+
+async function toggleQuest(templateId, enabled) {
+  try {
+    await apiFetch(`/admin/quests/${templateId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+    showToast(enabled ? '퀘스트 활성화됨' : '퀘스트 비활성화됨');
+  } catch (e) {
+    showToast('저장 실패');
+  }
+}
+
+// ─── 화면 진입 훅 ────────────────────────────────────────────────────────────
+const screenHooks = {
+  'screen-calendar': () => renderCalendar(STATE.calYear, STATE.calMonth),
+  'screen-settings': showSettings,
+  'screen-quest-manage': loadQuestManage,
+};
+
+const origShow = showScreen;
+window.showScreen = function(id) {
+  origShow(id);
+  if (screenHooks[id]) screenHooks[id]();
+};
+
+// ─── 시작 ────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

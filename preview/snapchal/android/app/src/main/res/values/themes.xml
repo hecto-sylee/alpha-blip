@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Snapchal" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#ff7043</item>
+        <item name="colorPrimaryVariant">#e64a19</item>
+        <item name="colorOnPrimary">#ffffff</item>
+        <item name="colorSecondary">#ff7043</item>
+        <item name="android:statusBarColor">#fdf8f3</item>
+        <item name="android:navigationBarColor">#fdf8f3</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
