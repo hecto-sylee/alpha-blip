@@ -1,0 +1,348 @@
+"""Pydantic v2 request/response DTOs (M0-M2 focus)."""
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+class GuestSignupReq(BaseModel):
+    nickname: str
+
+
+class GuestSignupRes(BaseModel):
+    user_id: str
+    auth_token: str
+
+
+class PetSummary(BaseModel):
+    id: str
+    name: str
+    breed: str | None = None
+    photo_url: str | None = None
+
+
+class MeRes(BaseModel):
+    id: str
+    nickname: str
+    profile_image_url: str | None = None
+    pets: list[PetSummary] = []
+
+
+# ---------------------------------------------------------------------------
+# Pets
+# ---------------------------------------------------------------------------
+class PetCreateReq(BaseModel):
+    name: str
+    photo_url: str | None = None
+    breed: str | None = None
+    age_months: int | None = None
+    gender: str | None = None
+    size: str | None = None
+    is_neutered: bool | None = None
+    personality_tags: list[str] | None = None
+    sociality: int | None = None
+    activity_level: int | None = None
+    walk_style: str | None = None
+    preferred_partner_size: list[str] | None = None
+    caution_notes: str | None = None
+
+
+class PetUpdateReq(BaseModel):
+    name: str | None = None
+    photo_url: str | None = None
+    breed: str | None = None
+    age_months: int | None = None
+    gender: str | None = None
+    size: str | None = None
+    is_neutered: bool | None = None
+    personality_tags: list[str] | None = None
+    sociality: int | None = None
+    activity_level: int | None = None
+    walk_style: str | None = None
+    preferred_partner_size: list[str] | None = None
+    caution_notes: str | None = None
+
+
+class PetCreateRes(BaseModel):
+    pet_id: str
+
+
+class PetRes(BaseModel):
+    id: str
+    name: str
+    photo_url: str | None = None
+    breed: str | None = None
+    age_months: int | None = None
+    gender: str | None = None
+    size: str | None = None
+    is_neutered: bool | None = None
+    personality_tags: list[str] = []
+    sociality: int | None = None
+    activity_level: int | None = None
+    walk_style: str | None = None
+    preferred_partner_size: list[str] = []
+    caution_notes: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Walks
+# ---------------------------------------------------------------------------
+class WalkStartReq(BaseModel):
+    pet_id: str
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class WalkStartRes(BaseModel):
+    walk_session_id: str
+    started_at: datetime
+
+
+class LocationReq(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class WalkEndReq(BaseModel):
+    ended_at: datetime | None = None
+    duration_minutes: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# Nearby
+# ---------------------------------------------------------------------------
+class ApproxLocation(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class NearbyDog(BaseModel):
+    walk_session_id: str
+    pet: PetRes
+    distance_meters: int
+    approximate_location: ApproxLocation
+
+
+class NearbyRes(BaseModel):
+    dogs: list[NearbyDog]
+
+
+# ---------------------------------------------------------------------------
+# Demo mode
+# ---------------------------------------------------------------------------
+class DemoSetupReq(BaseModel):
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class DemoLocation(BaseModel):
+    latitude: float
+    longitude: float
+    label: str
+
+
+class DemoSetupRes(BaseModel):
+    mock_user_id: str
+    mock_pet: PetRes
+    mock_walk_session_id: str
+    room_id: str
+    room_join_code: str
+    location: DemoLocation
+
+
+# ---------------------------------------------------------------------------
+# Matches
+# ---------------------------------------------------------------------------
+class MatchRequestReq(BaseModel):
+    receiver_walk_session_id: str
+
+
+class MatchRequestRes(BaseModel):
+    match_request_id: str
+    expires_at: datetime | None = None
+
+
+class IncomingRequest(BaseModel):
+    id: str
+    requester: dict
+    pet: dict | None = None
+    status: str
+    expires_at: datetime | None = None
+    created_at: datetime
+
+
+class IncomingRes(BaseModel):
+    requests: list[IncomingRequest]
+
+
+class AcceptRes(BaseModel):
+    match_session_id: str
+
+
+class MatchSessionRes(BaseModel):
+    id: str
+    status: str
+    partner: dict
+    started_at: datetime
+
+
+class MatchEndReq(BaseModel):
+    duration_minutes: int | None = None
+    distance_meters: int | None = None
+
+
+class MatchEndRes(BaseModel):
+    match_log_id: str
+
+
+# ---------------------------------------------------------------------------
+# Records (F-10)
+# ---------------------------------------------------------------------------
+class RecordCreateReq(BaseModel):
+    walk_session_id: str | None = None
+    match_session_id: str | None = None
+    daily_quest_id: str | None = None
+    visibility: str = "diary"
+    room_id: str | None = None
+    walked_at: date | None = None
+    duration_minutes: int | None = None
+    distance_meters: int | None = None
+    text: str | None = None
+    decoration_json: str | None = None
+    clip_ids: list[str] = []
+
+
+class RecordCreateRes(BaseModel):
+    record_id: str
+
+
+class RecordUpdateReq(BaseModel):
+    text: str | None = None
+    decoration_json: str | None = None
+    duration_minutes: int | None = None
+    distance_meters: int | None = None
+    visibility: str | None = None
+
+
+class ClipOut(BaseModel):
+    id: str
+    stream_url: str
+    duration_ms: int | None = None
+    order: int = 0
+    mission_id: str | None = None
+    status: str = "active"
+
+
+class ReactionAgg(BaseModel):
+    emoji: str
+    count: int
+
+
+class RecordOut(BaseModel):
+    id: str
+    user_id: str
+    visibility: str
+    room_id: str | None = None
+    walked_at: date | None = None
+    duration_minutes: int | None = None
+    distance_meters: int | None = None
+    text: str | None = None
+    decoration_json: str | None = None
+    daily_quest_id: str | None = None
+    clips: list[ClipOut] = []
+    reactions: list[ReactionAgg] = []
+    created_at: datetime
+
+
+class RecordListRes(BaseModel):
+    records: list[RecordOut]
+
+
+# ---------------------------------------------------------------------------
+# Clips (F-10)
+# ---------------------------------------------------------------------------
+class ClipUploadRes(BaseModel):
+    clip_id: str
+    file_path: str
+    stream_url: str
+
+
+# ---------------------------------------------------------------------------
+# Quests (F-12)
+# ---------------------------------------------------------------------------
+class MissionOut(BaseModel):
+    id: str
+    order: int
+    title: str
+    hint: str | None = None
+
+
+class QuestCandidate(BaseModel):
+    quest_template_id: str
+    title: str
+    description: str | None = None
+    missions: list[MissionOut] = []
+
+
+class CandidatesRes(BaseModel):
+    locked: bool
+    candidates: list[QuestCandidate]
+
+
+class QuestSelectReq(BaseModel):
+    scope: str
+    scope_id: str
+    quest_template_id: str
+    quest_date: date
+
+
+class QuestSelectRes(BaseModel):
+    daily_quest_id: str
+    locked: bool
+
+
+# ---------------------------------------------------------------------------
+# Rooms (F-11)
+# ---------------------------------------------------------------------------
+class RoomCreateReq(BaseModel):
+    name: str
+    mode: str = "walk_friend"
+
+
+class RoomCreateRes(BaseModel):
+    room_id: str
+    join_code: str
+
+
+class RoomCardOut(BaseModel):
+    room_id: str
+    name: str
+    mode: str
+    join_code: str
+    member_count: int
+
+
+# ---------------------------------------------------------------------------
+# Reactions (F-11)
+# ---------------------------------------------------------------------------
+class ReactionReq(BaseModel):
+    target_type: str
+    target_id: str
+    emoji: str
+
+
+# ---------------------------------------------------------------------------
+# Privacy (F-09)
+# ---------------------------------------------------------------------------
+class BlockReq(BaseModel):
+    target_user_id: str
+
+
+class ReportReq(BaseModel):
+    target_user_id: str
+    reason: str | None = None
+    context: str | None = None
