@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#FBF7F4" />
+  <title>blip — 산책·매칭·기록</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <span class="brand">blip<span class="dot">.</span></span>
+      <span id="who" class="who"></span>
+    </header>
+
+    <main id="view" aria-live="polite">
+      <div class="spinner" id="boot-spinner"></div>
+    </main>
+
+    <nav class="tabbar hidden" id="tabbar">
+      <a href="#/home"  data-tab="walk"><span class="ic">🐾</span><span>산책</span></a>
+      <a href="#/rooms" data-tab="room"><span class="ic">🏠</span><span>방</span></a>
+      <a href="#/diary" data-tab="diary"><span class="ic">📔</span><span>기록</span></a>
+      <a href="#/my"    data-tab="my"><span class="ic">🙂</span><span>마이</span></a>
+    </nav>
+  </div>
+
+  <div id="incoming-banner" class="incoming-card" hidden></div>
+  <div id="toasts"></div>
+  <div id="overlay-root"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
