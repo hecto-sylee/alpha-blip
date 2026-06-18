@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">blip</string>
+    <string name="settings_title">서버 설정</string>
+    <string name="server_url_label">ngrok 서버 주소</string>
+    <string name="server_url_hint">https://xxxx.ngrok-free.app</string>
+    <string name="server_url_label_full">시연 서버의 ngrok HTTPS URL을 입력하세요</string>
+    <string name="save_and_load">저장하고 열기</string>
+    <string name="invalid_url">http(s):// 로 시작하는 URL을 입력하세요</string>
+    <string name="menu_reload">새로고침</string>
+    <string name="menu_settings">서버 설정</string>
+</resources>
