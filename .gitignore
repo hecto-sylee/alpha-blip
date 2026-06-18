@@ -216,3 +216,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# blip MVP
+walk.db
+server/uploads/
+*.pyc
+__pycache__/
+.ngrok
+android/build/
+
+# personal planning notes (local only)
+docs/personal/
+
+# generated FE smoke screenshots
+scripts/.fe_shots*/
+
+# snapchal prototype runtime artifacts
+preview/snapchal/server/snapchal.db
+preview/snapchal/server/uploads/
