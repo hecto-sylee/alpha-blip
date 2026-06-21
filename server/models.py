@@ -273,6 +273,23 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class UserAchievement(Base):
+    """Unlocked badges (F-achievements). Definitions live in code
+    (services/achievements.py CATALOG); this table only records *when* a
+    given user crossed a threshold, so the unlock moment can be celebrated."""
+
+    __tablename__ = "user_achievements"
+    __table_args__ = (
+        UniqueConstraint("user_id", "code", name="uq_user_achievement"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    progress_value: Mapped[int] = mapped_column(Integer, default=0)
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
 

@@ -18,6 +18,7 @@ from ..schemas import (
     RecordOut,
     RecordUpdateReq,
 )
+from ..services import achievements as ach_svc
 from ..services import room as room_svc
 from ..utils.events import log_event
 
@@ -115,8 +116,9 @@ def create_record(
         clip.record_id = rec.id
 
     log_event(db, "record_save", user_id=user.id, payload={"record_id": rec.id})
+    unlocked = ach_svc.evaluate(db, user.id)  # streak/quest/만책/거리 갱신
     db.commit()
-    return RecordCreateRes(record_id=rec.id)
+    return RecordCreateRes(record_id=rec.id, unlocked=unlocked)
 
 
 @router.get("/records", response_model=RecordListRes)

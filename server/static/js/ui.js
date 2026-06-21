@@ -140,6 +140,20 @@ export function toast(msg, kind = "") {
   return t;
 }
 
+// ---------------- Achievement unlock toasts ----------------
+// 서버 응답의 unlocked 배열을 받아 뱃지 토스트를 띄운다. 토스트는 #toasts(뷰 밖)에
+// 쌓여 화면 전환 후에도 유지되므로 기록 저장→다이어리 이동 흐름에서도 안전하다.
+export function announceUnlocks(unlocked) {
+  if (!Array.isArray(unlocked) || !unlocked.length) return;
+  navigator.vibrate?.([16, 30, 16]);
+  unlocked.forEach((a, i) => {
+    setTimeout(() => {
+      const t = toast(`🏅 새 업적 · ${a.emoji} ${a.name}`, "ok");
+      t.classList.add("badge");
+    }, i * 480);
+  });
+}
+
 // ---------------- Bottom sheet ----------------
 export function bottomSheet(buildContent) {
   const root = document.getElementById("overlay-root");

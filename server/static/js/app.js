@@ -14,6 +14,7 @@ import { diaryScreen, recordViewScreen } from "./screens/diary.js";
 import { roomsListScreen, roomCreateScreen, roomJoinScreen } from "./screens/rooms.js";
 import { roomViewScreen } from "./screens/room_view.js";
 import { myScreen, settingsScreen } from "./screens/my.js";
+import { achievementsScreen } from "./screens/achievements.js";
 import { startIncomingWatch } from "./incoming.js";
 
 // ---- deep link: Android app://join/{code} → /?join={code} ----
@@ -47,6 +48,7 @@ route("/room/:id", roomViewScreen);
 
 // 마이 · 설정 (FE4)
 route("/my", myScreen);
+route("/achievements", achievementsScreen);
 route("/settings", settingsScreen);
 
 setNotFound(() => navigate(store.isAuthed ? "/home" : "/auth"));

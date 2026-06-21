@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import seed
 from .api import (
+    achievements,
     auth,
     clips,
     demo,
@@ -60,7 +61,7 @@ async def validation_exc_handler(request: Request, exc: RequestValidationError):
 
 
 # API routers (prefix /api)
-for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo):
+for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements):
     app.include_router(r.router, prefix="/api")
 
 # Static assets
