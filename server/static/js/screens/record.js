@@ -1,7 +1,7 @@
 // screens/record.js — SCR-20 기록 작성 에디터 (F-10). M3 Expressive.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, onLeave, reducedMotion, settleCardToCalendar } from "../ui.js";
+import { el, mount, toast, setTab, onLeave, reducedMotion, settleCardToCalendar, announceUnlocks } from "../ui.js";
 import { navigate } from "../router.js";
 import { openCamera, record as recordClip, stopStream, mediaSupported, CLIP_MS } from "../media.js";
 
@@ -187,11 +187,12 @@ export async function recordScreen(_params, query = {}) {
     if (state.matchId) payload.match_session_id = state.matchId;
     if (state.visibility === "room") payload.room_id = state.roomId;
     try {
-      await api.post("/records", payload);
+      const res = await api.post("/records", payload);
       localStorage.removeItem(DRAFT_KEY);
       if (demo) store.clearDemo();
       stopStream(state.stream);
       toast("기록을 저장했어요 📔", "ok");
+      announceUnlocks(res?.unlocked); // 새로 달성한 업적 뱃지 알림
       // 카드가 캘린더로 안착하는 모션 후 다이어리로
       sessionStorage.setItem("blip_record_saved_motion", "1");
       if (!reducedMotion()) {

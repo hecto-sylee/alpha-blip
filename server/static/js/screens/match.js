@@ -1,6 +1,6 @@
 // screens/match.js — SCR-12 미리보기 시트 · SCR-13 요청 대기 · SCR-14 매칭 세션 (F-03/04/05)
 import { api } from "../api.js";
-import { el, mount, toast, setTab, bottomSheet, celebrate, onLeave } from "../ui.js";
+import { el, mount, toast, setTab, bottomSheet, celebrate, onLeave, announceUnlocks } from "../ui.js";
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { fmtDistance } from "../geo.js";
@@ -120,6 +120,7 @@ export async function sessionScreen(params) {
     try {
       const res = await api.post(`/match-sessions/${sid}/end`, { duration_minutes: mins });
       toast("함께한 산책이 기록됐어요 🐾", "ok");
+      announceUnlocks(res?.unlocked); // 친구 N회 산책 등 업적 알림
     } catch (e) {
       toast(e.message || "종료 처리에 실패했어요", "err");
     }

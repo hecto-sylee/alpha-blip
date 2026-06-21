@@ -195,8 +195,16 @@ class MatchEndReq(BaseModel):
     distance_meters: int | None = None
 
 
+class UnlockedAchievement(BaseModel):
+    code: str
+    name: str
+    emoji: str
+    family: str
+
+
 class MatchEndRes(BaseModel):
     match_log_id: str
+    unlocked: list[UnlockedAchievement] = []
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +226,38 @@ class RecordCreateReq(BaseModel):
 
 class RecordCreateRes(BaseModel):
     record_id: str
+    unlocked: list[UnlockedAchievement] = []
+
+
+# ---------------------------------------------------------------------------
+# Achievements (badges)
+# ---------------------------------------------------------------------------
+class AchievementOut(BaseModel):
+    code: str
+    family: str
+    family_label: str
+    name: str
+    emoji: str
+    description: str
+    threshold: int
+    value: int
+    unlocked: bool
+    unlocked_at: datetime | None = None
+
+
+class AchievementSummary(BaseModel):
+    unlocked_count: int
+    total_count: int
+    progress: dict[str, int]
+
+
+class AchievementListRes(BaseModel):
+    summary: AchievementSummary
+    achievements: list[AchievementOut]
+
+
+class AchievementEvaluateRes(BaseModel):
+    unlocked: list[UnlockedAchievement] = []
 
 
 class RecordUpdateReq(BaseModel):

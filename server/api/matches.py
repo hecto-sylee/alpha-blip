@@ -16,6 +16,7 @@ from ..schemas import (
     MatchRequestRes,
     MatchSessionRes,
 )
+from ..services import achievements as ach_svc
 from ..services import matching
 from ..utils.events import log_event
 
@@ -142,8 +143,9 @@ def end_session(
         db, session_id, user.id, duration_minutes=body.duration_minutes, distance_meters=body.distance_meters
     )
     log_event(db, "match_end", user_id=user.id, payload={"match_log_id": log.id})
+    unlocked = ach_svc.evaluate(db, user.id)  # 친구 N회 산책 마일스톤 갱신
     db.commit()
-    return MatchEndRes(match_log_id=log.id)
+    return MatchEndRes(match_log_id=log.id, unlocked=unlocked)
 
 
 @router.post("/match-sessions/{session_id}/cancel")
