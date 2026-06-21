@@ -12,7 +12,9 @@ fail() { echo "  ❌ $1"; exit 1; }
 
 echo "== [1] GET / → SPA shell HTML 200 =="
 code=$(curl -s -o /tmp/blip_index.html -w "%{http_code}" "$BASE/")
-grep -q "blip MVP" /tmp/blip_index.html || fail "index missing marker"
+# SPA-shell marker: the refactored shell mounts into <div id="app"> (title is
+# now "blip — 산책·매칭·기록"); assert the shell root, not the old "blip MVP" string.
+grep -q 'id="app"' /tmp/blip_index.html || fail "index missing marker"
 [ "$code" = "200" ] && pass "SPA shell 200 (marker found)" || fail "got $code"
 
 echo "== [2] Guest signup → pet create/get/update (2xx) =="
