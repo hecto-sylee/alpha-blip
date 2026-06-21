@@ -290,6 +290,43 @@ class UserAchievement(Base):
     unlocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class LeagueStanding(Base):
+    """A user's *current* league tier (persistent across weeks; moved by the
+    weekly rollover). One row per user."""
+
+    __tablename__ = "league_standings"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_league_standing_user"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    tier: Mapped[str] = mapped_column(String, default="bronze", index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class LeaguePoint(Base):
+    """Append-only weekly points ledger. Weekly score = SUM(points) for the
+    user in the current `week_key` (ISO year-week, e.g. 2026-W25)."""
+
+    __tablename__ = "league_points"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    week_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class LeagueState(Base):
+    """Singleton bookkeeping: the last week_key the rollover processed, so
+    auto-rollover stays idempotent without a scheduler."""
+
+    __tablename__ = "league_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    last_rollover_week: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
 

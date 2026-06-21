@@ -260,6 +260,40 @@ class AchievementEvaluateRes(BaseModel):
     unlocked: list[UnlockedAchievement] = []
 
 
+# ---------------------------------------------------------------------------
+# Leagues (ranking)
+# ---------------------------------------------------------------------------
+class LeagueEntry(BaseModel):
+    rank: int
+    name: str
+    points: int
+    is_me: bool = False
+    is_bot: bool = False
+    zone: str  # promote | maintain | demote
+
+
+class LeagueMeRes(BaseModel):
+    tier: str
+    tier_label: str
+    tier_emoji: str
+    week_key: str
+    cohort_size: int
+    my_rank: int
+    my_points: int
+    promote_rank_max: int
+    demote_rank_min: int
+    entries: list[LeagueEntry]
+
+
+class LeagueRolloverRes(BaseModel):
+    week_key: str
+    promoted: int
+    demoted: int
+    stayed: int
+    skipped: bool = False
+    your_tier: str | None = None
+
+
 class RecordUpdateReq(BaseModel):
     text: str | None = None
     decoration_json: str | None = None

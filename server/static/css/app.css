@@ -804,3 +804,28 @@ textarea.input { resize: vertical; min-height: 84px; }
 
 /* 업적 해금 토스트 강조 */
 .toast.badge { background: var(--tertiary); color: var(--on-tertiary-container); font-weight:800; }
+
+/* ---------------- Leagues (ranking) ---------------- */
+.league-head { display:flex; align-items:center; gap:12px; background: var(--primary-container); }
+.league-emoji { font-size:2.4rem; line-height:1; }
+.league-tier { font-weight:900; font-size:1.15rem; color: var(--on-primary-container); }
+.league-myrank { text-align:center; background:#ffffffcc; border-radius: var(--r-md); padding:8px 12px; }
+.league-myrank .v { font-size:1.3rem; font-weight:900; color: var(--primary-dim); font-variant-numeric:tabular-nums; }
+.league-myrank .k { font-size:.74rem; font-weight:700; color: var(--on-surface-var); }
+.league-hint { text-align:center; font-size:.84rem; font-weight:700; color: var(--on-surface-var); margin:-2px 0 2px; }
+
+.league-board { background: var(--surface); border-radius: var(--r-lg); padding:6px; box-shadow: 0 3px 0 var(--surface-shadow), var(--ambient); }
+.lb-row { display:flex; align-items:center; gap:10px; padding:11px 10px; border-radius: var(--r-sm); box-shadow: inset 0 -1px 0 var(--divider); }
+.lb-row:last-child { box-shadow:none; }
+.lb-rank { width:26px; text-align:center; font-weight:900; font-variant-numeric:tabular-nums; color: var(--on-surface-var); }
+.lb-medal { width:18px; text-align:center; }
+.lb-name { flex:1; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lb-pts { font-weight:800; color: var(--primary); font-variant-numeric:tabular-nums; }
+.lb-row.zone-promote .lb-rank { color: var(--success-shadow); }
+.lb-row.zone-demote .lb-rank { color: var(--danger); }
+.lb-row.me { background: var(--tertiary-container); box-shadow: 0 0 0 2px var(--tertiary) inset; }
+.lb-row.me .lb-name { color: var(--on-tertiary-container); }
+
+.lb-divider { display:flex; align-items:center; justify-content:center; gap:6px; font-size:.72rem; font-weight:900; padding:6px; margin:2px 4px; border-radius: var(--r-pill); }
+.lb-divider.promote { color: var(--success-shadow); background: var(--secondary-container); }
+.lb-divider.demote { color: var(--danger); background: #FFE3E0; }
