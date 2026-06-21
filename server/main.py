@@ -44,6 +44,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="blip MVP", lifespan=lifespan)
 
 
+# Build-less ESM SPA: the static module graph (app.js + screens/*) and the
+# index shell must always be revalidated, otherwise a stale cached app.js can
+# lack newly-added routes (e.g. /league) and bounce the user to notFound→home.
+# `no-cache` = revalidate every time; ETag/Last-Modified keep 304s cheap.
+@app.middleware("http")
+async def revalidate_spa_assets(request: Request, call_next):
+    response = await call_next(request)
+    ctype = response.headers.get("content-type", "")
+    if request.url.path.startswith("/static/") or ctype.startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 # Uniform error envelope: { "error": { "code", "message" } }
 @app.exception_handler(StarletteHTTPException)
 async def http_exc_handler(request: Request, exc: StarletteHTTPException):
