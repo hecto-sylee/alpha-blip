@@ -15,6 +15,7 @@ import { roomsListScreen, roomCreateScreen, roomJoinScreen } from "./screens/roo
 import { roomViewScreen } from "./screens/room_view.js";
 import { myScreen, settingsScreen } from "./screens/my.js";
 import { achievementsScreen } from "./screens/achievements.js";
+import { leagueScreen } from "./screens/league.js";
 import { startIncomingWatch } from "./incoming.js";
 
 // ---- deep link: Android app://join/{code} → /?join={code} ----
@@ -46,7 +47,8 @@ route("/rooms/new", roomCreateScreen);
 route("/rooms/join", roomJoinScreen);
 route("/room/:id", roomViewScreen);
 
-// 마이 · 설정 (FE4)
+// 랭킹 · 마이 · 설정 (FE4)
+route("/league", leagueScreen);
 route("/my", myScreen);
 route("/achievements", achievementsScreen);
 route("/settings", settingsScreen);

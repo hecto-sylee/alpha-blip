@@ -19,6 +19,7 @@ from ..schemas import (
     RecordUpdateReq,
 )
 from ..services import achievements as ach_svc
+from ..services import leagues as league_svc
 from ..services import room as room_svc
 from ..utils.events import log_event
 
@@ -117,6 +118,13 @@ def create_record(
 
     log_event(db, "record_save", user_id=user.id, payload={"record_id": rec.id})
     unlocked = ach_svc.evaluate(db, user.id)  # streak/quest/만책/거리 갱신
+    league_svc.award_for_record(  # 주간 리그 점수 적립
+        db,
+        user.id,
+        quest_certified=daily_quest_id is not None,
+        streak=ach_svc.compute_progress(db, user.id)["streak"],
+        when=body.walked_at,
+    )
     db.commit()
     return RecordCreateRes(record_id=rec.id, unlocked=unlocked)
 
