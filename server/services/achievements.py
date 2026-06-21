@@ -27,6 +27,12 @@ from ..models import MatchLog, Record, UserAchievement, utcnow
 # Each badge: code, family, threshold, name (귀여운 이름), emoji, description.
 # `threshold` is compared against the family's computed progress value.
 CATALOG: list[dict] = [
+    # 산책 기록 횟수 (입문 → 누적) — 첫 산책이 온보딩 첫 보상
+    {"code": "walk_1",   "family": "walk", "threshold": 1,   "name": "첫 산책",     "emoji": "👣", "desc": "첫 산책을 기록했어요!"},
+    {"code": "walk_10",  "family": "walk", "threshold": 10,  "name": "산책 10번",   "emoji": "🐾", "desc": "산책을 10번 기록."},
+    {"code": "walk_50",  "family": "walk", "threshold": 50,  "name": "산책 50번",   "emoji": "🥾", "desc": "산책을 50번 기록."},
+    {"code": "walk_100", "family": "walk", "threshold": 100, "name": "백 번의 산책", "emoji": "🎽", "desc": "산책을 100번 기록!"},
+
     # 동일한 친구와 N회 같이 산책 (관계 마일스톤) — MatchLog.meet_count 최댓값
     {"code": "friend_1",   "family": "friend", "threshold": 1,   "name": "초면에 반가워요 멍", "emoji": "🐶", "desc": "산책 친구와 처음으로 만났어요."},
     {"code": "friend_2",   "family": "friend", "threshold": 2,   "name": "조심스러운 친구 사이", "emoji": "🐕", "desc": "같은 친구와 두 번째 산책."},
@@ -68,6 +74,7 @@ CATALOG: list[dict] = [
 CATALOG_BY_CODE = {a["code"]: a for a in CATALOG}
 
 FAMILY_LABELS = {
+    "walk": "산책",
     "friend": "산책 친구",
     "streak": "연속 산책",
     "quest": "퀘스트",
@@ -75,7 +82,7 @@ FAMILY_LABELS = {
     "distance": "누적 거리",
 }
 # Stable display order for families.
-FAMILY_ORDER = ["friend", "streak", "quest", "perfect_month", "distance"]
+FAMILY_ORDER = ["walk", "friend", "streak", "quest", "perfect_month", "distance"]
 
 
 # --- Progress computation ----------------------------------------------------
@@ -122,6 +129,10 @@ def compute_progress(db: Session, user_id: str, today: date | None = None) -> di
         .scalar()
     ) or 0
 
+    walk_count = (
+        db.query(func.count(Record.id)).filter(Record.user_id == user_id).scalar()
+    ) or 0
+
     quest_certs = (
         db.query(func.count(Record.id))
         .filter(Record.user_id == user_id, Record.daily_quest_id.isnot(None))
@@ -136,6 +147,7 @@ def compute_progress(db: Session, user_id: str, today: date | None = None) -> di
 
     walked = _walked_dates(db, user_id)
     return {
+        "walk": int(walk_count),
         "friend": int(max_meet),
         "streak": _current_streak(set(walked), today),
         "quest": int(quest_certs),
