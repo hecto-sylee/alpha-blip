@@ -3,14 +3,13 @@ import { api } from "../api.js";
 import { el, mount, toast, setTab, loading, staggerMotion, reducedMotion } from "../ui.js";
 import { navigate } from "../router.js";
 
-const FAMILY_ORDER = ["friend", "streak", "quest", "perfect_month", "distance"];
+const FAMILY_ORDER = ["walk", "friend", "streak", "quest", "perfect_month", "distance"];
 
 // 패밀리별로 진행도 값을 사람이 읽는 문자열로.
 function fmtValue(family, n) {
   if (family === "distance") return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}km`;
   if (family === "streak") return `${n}일`;
-  if (family === "perfect_month") return `${n}회`;
-  return `${n}회`; // friend, quest
+  return `${n}회`; // walk, friend, quest, perfect_month
 }
 
 export async function achievementsScreen() {
