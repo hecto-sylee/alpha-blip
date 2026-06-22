@@ -1,6 +1,6 @@
 // screens/match.js — SCR-12 미리보기 시트 · SCR-13 요청 대기 · SCR-14 매칭 세션 (F-03/04/05)
 import { api } from "../api.js";
-import { el, mount, toast, setTab, bottomSheet, celebrate, onLeave, announceUnlocks } from "../ui.js";
+import { el, mount, toast, setTab, bottomSheet, celebrate, onLeave, announceUnlocks, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { fmtDistance } from "../geo.js";
@@ -29,15 +29,15 @@ export function openPreview(dog, ctx) {
       el("div.row", {}, [
         el("div.pet-avatar.has-char", {}, [petCharacterEl(pet, { size: 56 })]),
         el("div", {}, [
-          el("div", { style: "font-weight:800;font-size:1.25rem", text: pet.name || "강아지" }),
+          el("div.title", { text: pet.name || "강아지" }),
           el("div.sub", { text: `${pet.breed || "견종 미상"} · ${fmtDistance(dog.distance_meters)} 근처` }),
         ]),
       ]),
-      el("div.row", { style: "flex-wrap:wrap;gap:8px" }, [
+      el("div.row.wrap.gap-sm", {}, [
         pet.size && el("span.chip.on", { text: sizeLabel(pet.size) }),
         ...tags,
       ]),
-      pet.caution_notes && el("p.sub", { text: `⚠️ ${pet.caution_notes}` }),
+      pet.caution_notes && el("p.sub", {}, [icon("triangle-alert"), ` ${pet.caution_notes}`]),
       cta,
     ]);
   });
@@ -66,13 +66,11 @@ export async function requestWaitScreen(params) {
   });
 
   mount(
-    el("div.stack.center", { id: "request-wait" }, [
-      el("div", { style: "height:10vh" }),
-      el("div", { style: "font-size:3rem", text: "🐾" }),
+    el("div.screen-center.stack.center", { id: "request-wait" }, [
+      el("div.emoji-xl", {}, [icon("paw-print")]),
       el("h1.h1", { text: "요청을 보냈어요" }),
       el("p.sub", { text: "상대가 수락하면 함께 산책을 시작해요." }),
       el("div.spinner"),
-      el("div", { style: "height:8px" }),
       cancelBtn,
     ])
   );
@@ -123,7 +121,7 @@ export async function sessionScreen(params) {
     const mins = Math.max(1, Math.round((Date.now() - started.getTime()) / 60000));
     try {
       const res = await api.post(`/match-sessions/${sid}/end`, { duration_minutes: mins });
-      toast("함께한 산책이 기록됐어요 🐾", "ok");
+      toast("함께한 산책이 기록됐어요", "ok", "paw-print");
       announceUnlocks(res?.unlocked); // 친구 N회 산책 등 업적 알림
     } catch (e) {
       toast(e.message || "종료 처리에 실패했어요", "err");
@@ -133,7 +131,7 @@ export async function sessionScreen(params) {
   });
 
   const hud = el("div.session-hud", {}, [
-    el("div", { style: "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px" }, [
+    el("div.session-hud-body", {}, [
       el("div.session-pets", {}, [
         el("div.session-pet", {}, [petCharacterEl(myPet || { name: "나" }, { size: 92 })]),
         el("div.session-pet", {}, [petCharacterEl(ppet.name ? ppet : { name: partner.nickname || "친구" }, { size: 92 })]),
@@ -143,7 +141,7 @@ export async function sessionScreen(params) {
       el("p.sub", { text: "동행 시간" }),
       timerEl,
     ]),
-    el("div", { style: "padding:0 16px calc(env(safe-area-inset-bottom) + 24px)" }, [endBtn]),
+    el("div.session-hud-foot", {}, [endBtn]),
   ]);
 
   mount(hud);

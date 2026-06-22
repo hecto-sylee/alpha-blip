@@ -1,7 +1,7 @@
 // screens/home.js — SCR-10 홈 (산책 시작 전). 큰 산책 CTA + 펫 카드.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, setTab, setWho, toast } from "../ui.js";
+import { el, mount, setTab, setWho, toast, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import { petCharacterEl } from "../character.js";
 
@@ -19,10 +19,11 @@ export async function homeScreen() {
 
   const startCta = el("button.cta.big.home-start", { id: "start-walk", type: "button", text: "산책 시작" });
   startCta.addEventListener("click", () => navigate("/walk"));
-  const demoCta = el("button.btn.secondary.demo-start", { id: "demo-setup", type: "button", text: "🧪 데모 산책 (강남 테헤란로)" });
+  const demoLabel = el("span", { text: "데모 산책 (강남 테헤란로)" });
+  const demoCta = el("button.btn.secondary.demo-start", { id: "demo-setup", type: "button" }, [icon("flask-conical"), demoLabel]);
   demoCta.addEventListener("click", async () => {
     demoCta.disabled = true;
-    demoCta.textContent = "데모 준비 중…";
+    demoLabel.textContent = "데모 준비 중…";
     try {
       const demo = await api.post("/demo/setup", {});
       store.setWalkId(null);
@@ -30,6 +31,8 @@ export async function homeScreen() {
         lat: demo.location.latitude,
         lng: demo.location.longitude,
         label: demo.location.label,
+        mockLat: demo.mock_location.latitude,
+        mockLng: demo.mock_location.longitude,
         mockSessionId: demo.mock_walk_session_id,
         mockPet: demo.mock_pet,
         roomId: demo.room_id,
@@ -40,7 +43,7 @@ export async function homeScreen() {
     } catch (e) {
       toast(e.message || "데모를 준비하지 못했어요", "err");
       demoCta.disabled = false;
-      demoCta.textContent = "🧪 데모 산책 (강남 테헤란로)";
+      demoLabel.textContent = "데모 산책 (강남 테헤란로)";
     }
   });
 
@@ -59,8 +62,8 @@ export async function homeScreen() {
         ? el("div.card.tappable.home-pet-card", { id: "my-pet-card", onclick: () => navigate(`/pet/${pet.id}`) }, [
             el("div.row", {}, [
               el("div.pet-avatar.home-pet-avatar.has-char", {}, [petCharacterEl(pet, { size: 56 })]),
-              el("div", { style: "min-width:0;flex:1" }, [
-                el("div", { style: "font-weight:900;font-size:1.25rem", text: pet.name }),
+              el("div.grow", {}, [
+                el("div.title", { text: pet.name }),
                 el("div.sub", { text: pet.breed || "견종 미입력" }),
               ]),
               el("span.chip.on", { text: "함께 걷기" }),

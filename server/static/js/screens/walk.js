@@ -1,7 +1,7 @@
 // screens/walk.js — SCR-11 산책 지도 (F-01). 챙키 지도 레이어.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, onLeave } from "../ui.js";
+import { el, mount, toast, setTab, onLeave, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { getOnce, watch, fmtDistance } from "../geo.js";
@@ -62,34 +62,36 @@ export async function walkScreen() {
 
   const top = el("div.walk-top", {}, [
     el("span.dotlive"),
-    el("span", { style: "font-weight:700", text: demo ? "데모 산책 중" : "산책 중" }),
+    el("span.strong", { text: demo ? "데모 산책 중" : "산책 중" }),
     el("span.spacer"),
     el("span.sub", { id: "walk-coord", text: "" }),
   ]);
 
   const questBanner = el("div.quest-banner", { id: "quest-banner", onclick: () => navigate("/quest") }, [
-    el("span.q-ic", { text: "🎯" }),
+    icon("target", { cls: "q-ic" }),
     el("div", {}, [
-      el("div", { style: "font-weight:800;font-size:.9rem", text: "오늘의 퀘스트" }),
+      el("div.strong", { text: "오늘의 퀘스트" }),
       el("div.sub", { id: "quest-text", text: "탭해서 오늘 찍어볼 순간을 정해요" }),
     ]),
   ]);
 
   const endBtn = el("button.cta", { id: "end-walk", text: "산책 종료" });
   const bottom = el("div.walk-bottom", {}, [
-    el("div.row", {}, [el("span", { text: "🐾" }), countEl]),
-    el("div", { style: "height:10px" }),
-    endBtn,
+    el("div.stack.gap-sm", {}, [
+      el("div.row", {}, [icon("paw-print"), countEl]),
+      endBtn,
+    ]),
   ]);
 
-  const fallback = el("div.map-fallback", { id: "walk-fallback", style: "display:none" }, [
-    el("div.radar", {}, [el("div.me", { text: "📍" })]),
+  const fallback = el("div.map-fallback.hidden", { id: "walk-fallback" }, [
+    el("div.radar", {}, [el("div.me", {}, [icon("map-pin")])]),
     el("p.center.sub", { text: "지도를 불러올 수 없어 목록으로 표시해요." }),
     el("div", { id: "fallback-list", class: "stack" }),
   ]);
   const demoPeerLayer = el("div", { id: "demo-peer-layer" });
 
-  const screen = el("div.map-screen", {}, [mapEl, fallback, demoPeerLayer, top, questBanner, bottom]);
+  const overlaysTop = el("div.walk-overlays-top", {}, [top, questBanner]);
+  const screen = el("div.map-screen", {}, [mapEl, fallback, demoPeerLayer, overlaysTop, bottom]);
   mount(screen);
   document.getElementById("view")?.classList.add("walk-view");
   onLeave(() => document.getElementById("view")?.classList.remove("walk-view"));
@@ -98,6 +100,7 @@ export async function walkScreen() {
   const ctx = { map: null, markers: new Map(), here, walkId, useFallback: false, demo, myPet };
   initMap(ctx, mapEl, fallback);
   addDemoPeerMarker(ctx, demoPeerLayer);
+  frameDemo(ctx);
 
   document.getElementById("walk-coord").textContent = `${here.lat.toFixed(4)}, ${here.lng.toFixed(4)}`;
 
@@ -134,7 +137,7 @@ export async function walkScreen() {
     const endedId = ctx.walkId;
     store.setWalkId(null);
     poll.stop("nearby");
-    toast("산책을 마쳤어요 🐾", "ok");
+    toast("산책을 마쳤어요", "ok", "paw-print");
     // SCR-20 기록 에디터로 (혼자 산책 출처 연결)
     navigate(`/record?walk=${endedId}`);
   });
@@ -169,7 +172,7 @@ function initMap(ctx, mapEl, fallback) {
 
 function enableFallback(ctx, fallback) {
   ctx.useFallback = true;
-  fallback.style.display = "block";
+  fallback.classList.remove("hidden");
 }
 
 function updateMe(ctx) {
@@ -199,9 +202,9 @@ async function refreshNearby(ctx) {
       if (list) list.append(chip);
       ctx.markers.set(dog.walk_session_id, { chip, marker: null });
     } else {
-      const marker = new maplibregl.Marker({ element: chip, anchor: "bottom" })
-        .setLngLat([dog.approximate_location.longitude, dog.approximate_location.latitude])
-        .addTo(ctx.map);
+      const marker = placeChipMarker(
+        ctx, chip, dog.approximate_location.longitude, dog.approximate_location.latitude
+      );
       ctx.markers.set(dog.walk_session_id, { chip, marker });
     }
   }
@@ -214,6 +217,17 @@ async function refreshNearby(ctx) {
       ctx.markers.delete(ws);
     }
   }
+}
+
+// maplibre 마커로 칩을 배치한다. 칩의 marker-pop 애니메이션이 transform:none(both)으로
+// 끝나며 maplibre의 위치 transform을 덮어쓰는 문제를 피하려고 래퍼 div를 끼운다.
+// (maplibre는 래퍼에 transform, 애니메이션은 안쪽 칩에만 적용)
+function placeChipMarker(ctx, chip, lng, lat) {
+  const wrap = el("div.marker-wrap", {});
+  wrap.appendChild(chip);
+  return new maplibregl.Marker({ element: wrap, anchor: "bottom" })
+    .setLngLat([lng, lat])
+    .addTo(ctx.map);
 }
 
 function dogMarker(dog, onTap) {
@@ -231,20 +245,53 @@ function dogMarker(dog, onTap) {
   );
 }
 
+// 데모: 내 위치(데모 원점)를 중심으로 잡아 주변 더미 친구(망고·초코·콩)가
+// 한 화면에 고르게 들어오게 한다. (마커는 각자 고정 좌표 그대로, 화면만 맞춤)
+function frameDemo(ctx) {
+  if (!ctx.map || !ctx.demo || ctx.useFallback) return;
+  const center = [ctx.here.lng, ctx.here.lat];
+  const apply = () => { try { ctx.map.jumpTo({ center, zoom: 15 }); } catch (_) {} };
+  if (ctx.map.loaded()) apply(); else ctx.map.on("load", apply);
+}
+
+function metersBetween(aLat, aLng, bLat, bLng) {
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad, dLng = (bLng - aLng) * rad;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
 function addDemoPeerMarker(ctx, layer) {
   const demo = ctx.demo;
-  if (!demo?.mockSessionId || !layer || ctx.markers.has(demo.mockSessionId)) return;
+  if (!demo?.mockSessionId || ctx.markers.has(demo.mockSessionId)) return;
   const pet = demo.mockPet || { name: "테헤란로 망고", breed: "비숑", personality_tags: ["데모"] };
+  const hasCoord = typeof demo.mockLat === "number" && typeof demo.mockLng === "number";
   const dog = {
     walk_session_id: demo.mockSessionId,
     pet: { ...pet, name: pet.name || "테헤란로 망고" },
-    distance_meters: 80,
+    approximate_location: hasCoord
+      ? { latitude: demo.mockLat, longitude: demo.mockLng }
+      : null,
+    distance_meters: hasCoord
+      ? Math.round(metersBetween(ctx.here.lat, ctx.here.lng, demo.mockLat, demo.mockLng))
+      : 80,
     is_demo: true,
   };
   const chip = dogMarker(dog, () => openPreview(dog, ctx));
   chip.setAttribute("aria-label", "데모 상대 사용자");
-  layer.append(chip);
-  ctx.markers.set(demo.mockSessionId, { chip, marker: null, demo: true });
+  // 지도가 살아 있으면 고정 좌표에 지리적 마커로 박는다(지도를 움직여도 그 지점에 고정).
+  if (ctx.map && !ctx.useFallback && hasCoord) {
+    // 스타일 load 이후에 추가해야 jumpTo 등 카메라 변경에 맞춰 정상 투영된다.
+    const place = () => placeChipMarker(ctx, chip, demo.mockLng, demo.mockLat);
+    if (ctx.map.loaded()) place(); else ctx.map.on("load", place);
+    ctx.markers.set(demo.mockSessionId, { chip, marker: true, demo: true });
+  } else {
+    // 폴백(WebGL 불가): 떠다니는 오버레이 칩으로 표시.
+    layer?.append(chip);
+    ctx.markers.set(demo.mockSessionId, { chip, marker: null, demo: true });
+  }
 }
 
 async function loadQuestBanner() {
@@ -271,7 +318,7 @@ function renderDenied(code) {
     el("div.stack", {}, [
       el("h1.h1", { text: "산책 지도" }),
       el("div.empty", {}, [
-        el("div.big", { text: "📍" }),
+        el("div.big", {}, [icon("map-pin")]),
         el("p", { text: msg }),
       ]),
       el("button.cta", { text: "다시 시도", onclick: () => navigate("/walk") }),

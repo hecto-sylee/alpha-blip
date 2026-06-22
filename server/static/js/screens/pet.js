@@ -1,7 +1,7 @@
 // screens/pet.js — SCR-02 반려동물 등록 / SCR-31 수정 (F-02)
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab } from "../ui.js";
+import { el, mount, toast, setTab, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
 const SIZES = [["small", "소형"], ["medium", "중형"], ["large", "대형"]];
@@ -65,7 +65,7 @@ export async function petScreen(params = {}) {
     })
   );
 
-  const neuter = el("label.row", { style: "cursor:pointer" }, [
+  const neuter = el("label.row.clickable", {}, [
     (() => {
       const c = el("input", { type: "checkbox", id: "pet-neuter" });
       c.checked = !!state.is_neutered;
@@ -101,7 +101,7 @@ export async function petScreen(params = {}) {
       } else {
         const res = await api.post("/pets", payload);
         store.setPetId(res.pet_id);
-        toast("등록 완료! 🐾", "ok");
+        toast("등록 완료!", "ok", "paw-print");
         navigate("/home");
       }
     } catch (e) {
@@ -124,7 +124,6 @@ export async function petScreen(params = {}) {
       el("div.card", {}, [neuter]),
       field("주의사항", false, notesI),
       cta,
-      el("div", { style: "height:8px" }),
     ])
   );
 

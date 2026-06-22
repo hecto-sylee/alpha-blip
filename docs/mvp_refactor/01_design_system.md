@@ -118,6 +118,38 @@ blip 코랄 아이덴티티 **유지**, 채도/명도를 듀오링고처럼 더 
 - 토스트: 유지(스프링 인/아웃, err 셰이크). `--r-md`.
 - 빈 상태 `.empty`: 큰 이모지 + 다음 행동 CTA + 가벼운 모션(모션 스펙).
 
+## 5-9. 유틸리티 레이어 (단일 소스 — 화면 통일용)
+
+> 화면(JS 템플릿)에서 **인라인 스타일 금지**. 타이포/간격/레이아웃/가시성은 아래 클래스로만 표현해
+> 전 화면이 같은 스케일을 공유한다. (동적 값 — 예: 진행바 `width:${pct}%` — 만 인라인 허용.)
+
+**타이포 스케일**
+- `.h1`(1.7rem/900) · `.title`(1.25rem/900, 화면 제목) · `.h2`(1.2rem/800, 섹션) · 본문(기본 500) ·
+  `.sub`(.92rem, muted) · `.strong`(굵기 800 강조) · `.muted`(약한 색)
+- 이모지/일러스트 3단계: `.emoji-lg`(2rem) · `.emoji-xl`(3rem) · `.emoji-2xl`(3.4rem)
+
+**레이아웃 / 간격**
+- 세로 리듬: `.stack`(12px) — 비표준은 `.stack.gap-sm`(8px) / `.stack.gap-lg`(16px). **임시 스페이서 div 금지.**
+- 가로: `.row`(10px) — `.row.gap-sm`(8px) / `.row.gap-lg`(16px), `.wrap`(줄바꿈)
+- flex 자식: `.spacer`(빈 여백 채움) · `.grow`(내용이 차며 말줄임 허용, `min-width:0`)
+- `.chip-row`(가로 스크롤 칩 줄) · `.screen-center`(전체화면 세로 중앙 — 자식은 가로로 채움)
+
+**가시성 / 상호작용**
+- `.hidden`(표시/숨김 토글 — 인라인 `display:none` 대신 classList 토글) · `.clickable`(`cursor:pointer`)
+
+**토큰**
+- `--shadow-pop`(축하/팝업 강조 `drop-shadow`) — 하드코딩 rgba 그림자 대신 사용
+
+## 5-10. 아이콘 (이모지 대신 인라인 SVG)
+
+> UI/장식 이모지는 **Lucide**(ISC, https://lucide.dev) 인라인 SVG로 대체한다. CDN/패키지 없이
+> `server/static/js/icons.js`의 path 레지스트리에서 SVG를 생성 → **런타임 의존성 0**.
+- 사용: `icon("camera")`가 `<svg class="ic">`를 반환(`el()`의 자식으로). 정적 마크업(탭바)은
+  `<span class="ic" data-icon="paw-print">` + 부트 시 `hydrateIcons()`가 치환.
+- 색 = `currentColor`(부모 텍스트색), 크기 = `1em`(부모 `font-size`). 즉 기존 폰트사이즈/색 규칙을 그대로 따른다.
+- 새 아이콘은 `icons.js`의 `PATHS`에 Lucide inner SVG를 추가.
+- **유지(이모지 그대로)**: 데이터성 — 업적 뱃지(`a.emoji`)·리그 티어(`tier_emoji`)·리그 메달(🥇🥈🥉)·반응(❤️😂🔥👍😮).
+
 ## 6. 타이포 / 접근성
 - 폰트: **Pretendard 헤비 웨이트**로 챙키하게(의존성 0 유지). 헤딩 `800~900`, 본문 `500~600`.
   (둥근 헤딩 폰트 Nunito CDN은 선택지로 열어두되 기본은 미도입.)
@@ -128,4 +160,5 @@ blip 코랄 아이덴티티 **유지**, 채도/명도를 듀오링고처럼 더 
 - [ ] `app.css`에 `grep "1px solid var(--outline)"`/`1.5px solid` 결과 0 (테두리 선 제거).
 - [ ] 버튼/CTA `:active`에서 눌림(translateY) 동작.
 - [ ] 글래스 잔재(`.glass`, `.glass-edge`, `backdrop-filter` 의존 패널) 제거/흡수.
+- [ ] 화면 마크업에 임시 인라인 스타일(타이포/간격/레이아웃/가시성) 없음 — 5-9 유틸리티 사용(동적 width 제외).
 - [ ] 헤드리스 스모크 콘솔 에러 0 + before/after 스크린샷.

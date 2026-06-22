@@ -1,7 +1,7 @@
 // screens/record.js — SCR-20 기록 작성 에디터 (F-10). M3 Expressive.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, onLeave, reducedMotion, settleCardToCalendar, announceUnlocks } from "../ui.js";
+import { el, mount, toast, setTab, onLeave, reducedMotion, settleCardToCalendar, announceUnlocks, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import { openCamera, record as recordClip, stopStream, mediaSupported, CLIP_MS } from "../media.js";
 
@@ -66,7 +66,7 @@ export async function recordScreen(_params, query = {}) {
   function camDenied(msg) {
     camBox.classList.add("denied");
     camBox.innerHTML = "";
-    camBox.append(el("div.center", {}, [el("div", { style: "font-size:2rem", text: "📷" }), el("p.sub", { text: msg })]));
+    camBox.append(el("div.center", {}, [el("div.emoji-lg", {}, [icon("camera-off")]), el("p.sub", { text: msg })]));
   }
 
   recRing.addEventListener("click", () => doRecord(curMissionId));
@@ -93,7 +93,7 @@ export async function recordScreen(_params, query = {}) {
       state.clips.push({ clip_id: res.clip_id, mission_id: missionId, durationMs, url });
       renderClips();
       markMissionDone(missionId);
-      toast("2초 클립 촬영 완료 🎬", "ok");
+      toast("2초 클립 촬영 완료", "ok", "film");
     } catch (e) {
       toast(typeof e === "string" ? "녹화에 실패했어요" : (e.message || "업로드 실패"), "err");
     } finally {
@@ -113,9 +113,9 @@ export async function recordScreen(_params, query = {}) {
     state.clips.forEach((c, i) => {
       const chip = el("div.clip-chip", { dataset: { clipId: c.clip_id } });
       if (c.url) { const v = el("video", { src: c.url, muted: "", playsinline: "" }); v.muted = true; chip.append(v); }
-      else chip.append(el("span", { text: "🎬" }));
+      else chip.append(icon("film"));
       chip.append(el("span.len", { text: "2s" }));
-      const x = el("span.x", { text: "✕" });
+      const x = el("span.x", {}, [icon("x")]);
       x.addEventListener("click", (e) => {
         e.stopPropagation();
         state.clips.splice(i, 1);
@@ -131,12 +131,12 @@ export async function recordScreen(_params, query = {}) {
   function renderMissions() {
     missionWrap.innerHTML = "";
     if (!quest) return;
-    missionWrap.append(el("div.h2", { text: `🎯 ${quest.title}` }));
+    missionWrap.append(el("div.h2", {}, [icon("target"), ` ${quest.title}`]));
     (quest.missions || []).forEach((m) => {
       const done = state.clips.some((c) => c.mission_id === m.id);
       const row = el("div.mission-row" + (done ? ".done" : ""), { dataset: { mid: m.id } }, [
-        el("div.ord", { text: done ? "✓" : String(m.order) }),
-        el("div", { style: "flex:1" }, [
+        el("div.ord", {}, [done ? icon("check") : String(m.order)]),
+        el("div.grow", {}, [
           el("div.m-title", { text: m.title }),
           m.hint && el("div.m-hint", { text: m.hint }),
         ]),
@@ -149,18 +149,18 @@ export async function recordScreen(_params, query = {}) {
 
   // ---- visibility ----
   const visSeg = el("div.seg", { id: "vis-seg" });
-  [["diary", "📔 일기"], ["room", "👥 방 공유"]].forEach(([val, label]) => {
-    const o = el("div.opt" + (val === state.visibility ? ".sel" : ""), { text: label, dataset: { val } });
+  [["diary", "notebook", "일기"], ["room", "users", "방 공유"]].forEach(([val, ic, label]) => {
+    const o = el("div.opt" + (val === state.visibility ? ".sel" : ""), { dataset: { val } }, [icon(ic), ` ${label}`]);
     o.addEventListener("click", () => {
       if (val === "room" && !rooms.length) { toast("먼저 방에 참여해 주세요 (기록 탭)", "err"); return; }
       state.visibility = val; saveDraft();
       visSeg.querySelectorAll(".opt").forEach((n) => n.classList.remove("sel"));
       o.classList.add("sel");
-      roomSelect.style.display = val === "room" ? "block" : "none";
+      roomSelect.classList.toggle("hidden", val !== "room");
     });
     visSeg.append(o);
   });
-  const roomSelect = el("select.select", { id: "room-select", style: state.visibility === "room" ? "" : "display:none" },
+  const roomSelect = el("select.select" + (state.visibility === "room" ? "" : ".hidden"), { id: "room-select" },
     rooms.map((r) => el("option", { value: r.room_id, text: r.name })));
   if (state.roomId) roomSelect.value = state.roomId;
   roomSelect.addEventListener("change", () => { state.roomId = roomSelect.value; saveDraft(); });
@@ -191,7 +191,7 @@ export async function recordScreen(_params, query = {}) {
       localStorage.removeItem(DRAFT_KEY);
       if (demo) store.clearDemo();
       stopStream(state.stream);
-      toast("기록을 저장했어요 📔", "ok");
+      toast("기록을 저장했어요", "ok", "notebook");
       announceUnlocks(res?.unlocked); // 새로 달성한 업적 뱃지 알림
       // 카드가 캘린더로 안착하는 모션 후 다이어리로
       sessionStorage.setItem("blip_record_saved_motion", "1");
@@ -211,7 +211,7 @@ export async function recordScreen(_params, query = {}) {
     el("div.stack", { id: "record-editor" }, [
       el("h1.h1", { text: "산책 기록" }),
       el("div.card", {}, [
-        el("div.row", {}, [el("span", { text: "📅" }), el("span", { text: todayStr() }), el("span.spacer"), el("span.sub", { text: state.matchId ? "함께 산책" : "혼자 산책" })]),
+        el("div.row", {}, [icon("calendar"), el("span", { text: todayStr() }), el("span.spacer"), el("span.sub", { text: state.matchId ? "함께 산책" : "혼자 산책" })]),
       ]),
       camBox,
       el("div.h2", { text: "담은 클립" }),
@@ -220,7 +220,6 @@ export async function recordScreen(_params, query = {}) {
       el("div.field", {}, [el("label", { text: "공개 범위" }), visSeg, roomSelect]),
       el("div.field", {}, [el("label", { text: "메모" }), textArea]),
       cta,
-      el("div", { style: "height:8px" }),
     ])
   );
 

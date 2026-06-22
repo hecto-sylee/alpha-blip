@@ -2,7 +2,7 @@
 // 라우터의 stopAll() 영향을 받지 않도록 자체 setInterval로 동작한다.
 import { api } from "./api.js";
 import { store } from "./store.js";
-import { reducedMotion, toast } from "./ui.js";
+import { reducedMotion, toast, icon } from "./ui.js";
 import { navigate } from "./router.js";
 import { petCharacterEl } from "./character.js";
 
@@ -46,7 +46,7 @@ function show(req) {
   });
 
   const close = document.createElement("button");
-  close.className = "btn ghost"; close.id = "incoming-close"; close.textContent = "✕";
+  close.className = "btn ghost"; close.id = "incoming-close"; close.append(icon("x"));
   close.addEventListener("click", () => { dismissed.add(req.id); hide(); });
 
   const nick = (req.requester && req.requester.nickname) || "누군가";

@@ -1,6 +1,6 @@
 // screens/league.js — SCR-40 랭킹(주간 리그) + 업적 진입. 하단 "랭킹" 탭.
 import { api } from "../api.js";
-import { el, mount, toast, setTab, loading, staggerMotion } from "../ui.js";
+import { el, mount, toast, setTab, loading, staggerMotion, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
 export async function leagueScreen() {
@@ -18,7 +18,7 @@ export async function leagueScreen() {
   if (!lg) {
     mount(el("div.stack", {}, [
       el("h1.h1", { text: "랭킹" }),
-      el("div.empty", {}, [el("div.big", { text: "🏆" }), el("p", { text: "랭킹을 불러오지 못했어요." })]),
+      el("div.empty", {}, [el("div.big", {}, [icon("trophy")]), el("p", { text: "랭킹을 불러오지 못했어요." })]),
     ]));
     return;
   }
@@ -34,7 +34,7 @@ export async function leagueScreen() {
       // 리그 헤더
       el("div.card.league-head", {}, [
         el("div.league-emoji", { text: lg.tier_emoji }),
-        el("div", { style: "flex:1" }, [
+        el("div.grow", {}, [
           el("div.league-tier", { text: `${lg.tier_label} 리그` }),
           el("div.sub", { text: `${lg.week_key} · ${lg.cohort_size}명 중` }),
         ]),
@@ -50,7 +50,6 @@ export async function leagueScreen() {
 
       // 업적 진입
       achievementsBlock(ach),
-      el("div", { style: "height:12px" }),
     ])
   );
 
@@ -62,10 +61,10 @@ function buildBoard(lg) {
   lg.entries.forEach((e, i) => {
     // 승급/강등 경계선
     if (lg.promote_rank_max && e.rank === lg.promote_rank_max + 1) {
-      rows.push(el("div.lb-divider.promote", { text: "⬆ 승급권" }));
+      rows.push(el("div.lb-divider.promote", {}, [icon("arrow-up"), " 승급권"]));
     }
     if (lg.demote_rank_min <= lg.cohort_size && e.rank === lg.demote_rank_min) {
-      rows.push(el("div.lb-divider.demote", { text: "⬇ 강등권" }));
+      rows.push(el("div.lb-divider.demote", {}, [icon("arrow-down"), " 강등권"]));
     }
     rows.push(
       el("div.lb-row" + (e.is_me ? ".me" : "") + `.zone-${e.zone}`, {}, [
@@ -87,14 +86,14 @@ function achievementsBlock(ach) {
 
   return el("div.card.tappable.ach-card", { onclick: () => navigate("/achievements") }, [
     el("div.ach-card-head", {}, [
-      el("span.ach-card-title", { text: "🏅 업적" }),
+      el("span.ach-card-title", {}, [icon("award"), " 업적"]),
       el("span.spacer"),
       el("span.ach-card-count", { text: count }),
     ]),
     el("div.ach-card-sub", { text: "달성한 뱃지는 컬러, 잠긴 뱃지는 회색으로 보여요" }),
     el("div.ach-card-strip", {}, preview.length
       ? preview.map((a) => el("span.ach-card-emoji" + (a.unlocked ? "" : ".dim"), { text: a.emoji, title: a.name }))
-      : [el("span.ach-card-emoji.dim", { text: "🐾" })]),
-    el("button.btn.secondary", { id: "see-all-ach", text: "모든 업적 보기", style: "margin-top:12px;width:100%", onclick: (ev) => { ev.stopPropagation(); navigate("/achievements"); } }),
+      : [el("span.ach-card-emoji.dim", {}, [icon("paw-print")])]),
+    el("button.btn.secondary.ach-card-action", { id: "see-all-ach", text: "모든 업적 보기", onclick: (ev) => { ev.stopPropagation(); navigate("/achievements"); } }),
   ]);
 }
