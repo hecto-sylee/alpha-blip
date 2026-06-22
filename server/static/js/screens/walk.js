@@ -1,7 +1,7 @@
 // screens/walk.js — SCR-11 산책 지도 (F-01). 챙키 지도 레이어.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, onLeave } from "../ui.js";
+import { el, mount, toast, setTab, onLeave, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { getOnce, watch, fmtDistance } from "../geo.js";
@@ -58,34 +58,36 @@ export async function walkScreen() {
 
   const top = el("div.walk-top", {}, [
     el("span.dotlive"),
-    el("span", { style: "font-weight:700", text: demo ? "데모 산책 중" : "산책 중" }),
+    el("span.strong", { text: demo ? "데모 산책 중" : "산책 중" }),
     el("span.spacer"),
     el("span.sub", { id: "walk-coord", text: "" }),
   ]);
 
   const questBanner = el("div.quest-banner", { id: "quest-banner", onclick: () => navigate("/quest") }, [
-    el("span.q-ic", { text: "🎯" }),
+    icon("target", { cls: "q-ic" }),
     el("div", {}, [
-      el("div", { style: "font-weight:800;font-size:.9rem", text: "오늘의 퀘스트" }),
+      el("div.strong", { text: "오늘의 퀘스트" }),
       el("div.sub", { id: "quest-text", text: "탭해서 오늘 찍어볼 순간을 정해요" }),
     ]),
   ]);
 
   const endBtn = el("button.cta", { id: "end-walk", text: "산책 종료" });
   const bottom = el("div.walk-bottom", {}, [
-    el("div.row", {}, [el("span", { text: "🐾" }), countEl]),
-    el("div", { style: "height:10px" }),
-    endBtn,
+    el("div.stack.gap-sm", {}, [
+      el("div.row", {}, [icon("paw-print"), countEl]),
+      endBtn,
+    ]),
   ]);
 
-  const fallback = el("div.map-fallback", { id: "walk-fallback", style: "display:none" }, [
-    el("div.radar", {}, [el("div.me", { text: "📍" })]),
+  const fallback = el("div.map-fallback.hidden", { id: "walk-fallback" }, [
+    el("div.radar", {}, [el("div.me", {}, [icon("map-pin")])]),
     el("p.center.sub", { text: "지도를 불러올 수 없어 목록으로 표시해요." }),
     el("div", { id: "fallback-list", class: "stack" }),
   ]);
   const demoPeerLayer = el("div", { id: "demo-peer-layer" });
 
-  const screen = el("div.map-screen", {}, [mapEl, fallback, demoPeerLayer, top, questBanner, bottom]);
+  const overlaysTop = el("div.walk-overlays-top", {}, [top, questBanner]);
+  const screen = el("div.map-screen", {}, [mapEl, fallback, demoPeerLayer, overlaysTop, bottom]);
   mount(screen);
   document.getElementById("view")?.classList.add("walk-view");
   onLeave(() => document.getElementById("view")?.classList.remove("walk-view"));
@@ -130,7 +132,7 @@ export async function walkScreen() {
     const endedId = ctx.walkId;
     store.setWalkId(null);
     poll.stop("nearby");
-    toast("산책을 마쳤어요 🐾", "ok");
+    toast("산책을 마쳤어요", "ok", "paw-print");
     // SCR-20 기록 에디터로 (혼자 산책 출처 연결)
     navigate(`/record?walk=${endedId}`);
   });
@@ -165,7 +167,7 @@ function initMap(ctx, mapEl, fallback) {
 
 function enableFallback(ctx, fallback) {
   ctx.useFallback = true;
-  fallback.style.display = "block";
+  fallback.classList.remove("hidden");
 }
 
 function updateMe(ctx) {
@@ -216,7 +218,7 @@ function dogMarker(dog, onTap) {
     "div.dog-marker" + (dog.is_demo ? ".demo-peer-marker" : ""),
     { dataset: { ws: dog.walk_session_id }, onclick: onTap },
     [
-      el("div.face", { text: dog.is_demo ? "👤" : "🐶" }),
+      el("div.face", {}, [icon(dog.is_demo ? "user" : "dog")]),
       el("div.meta", {}, [
         el("div.nm", { text: pet.name || "강아지" }),
         el("div.ds", { text: fmtDistance(dog.distance_meters) }),
@@ -265,7 +267,7 @@ function renderDenied(code) {
     el("div.stack", {}, [
       el("h1.h1", { text: "산책 지도" }),
       el("div.empty", {}, [
-        el("div.big", { text: "📍" }),
+        el("div.big", {}, [icon("map-pin")]),
         el("p", { text: msg }),
       ]),
       el("button.cta", { text: "다시 시도", onclick: () => navigate("/walk") }),

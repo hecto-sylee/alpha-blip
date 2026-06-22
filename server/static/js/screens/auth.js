@@ -1,7 +1,7 @@
 // screens/auth.js — SCR-01 로그인/회원가입 (게스트)
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, setWho } from "../ui.js";
+import { el, mount, toast, setTab, setWho, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
 export async function authScreen() {
@@ -39,14 +39,12 @@ export async function authScreen() {
   });
 
   mount(
-    el("div.stack", {}, [
-      el("div", { style: "height:8vh" }),
+    el("div.screen-center.stack", {}, [
       el("div.center", {}, [
-        el("div", { style: "font-size:3rem", text: "🐾" }),
+        el("div.emoji-xl", {}, [icon("paw-print")]),
         el("h1.h1", { text: "오늘, 같이 걸을까요?" }),
         el("p.sub", { text: "닉네임만으로 바로 시작해요. 비밀번호 없이 게스트로." }),
       ]),
-      el("div", { style: "height:12px" }),
       el("div.field", {}, [el("label", { html: "닉네임 <span class='req'>*</span>" }), input]),
       cta,
       el("p.sub.center", { text: "산책하며 근처 강아지 친구를 만나고, 2초 클립으로 기록해요." }),

@@ -17,6 +17,7 @@ import { myScreen, settingsScreen } from "./screens/my.js";
 import { achievementsScreen } from "./screens/achievements.js";
 import { leagueScreen } from "./screens/league.js";
 import { startIncomingWatch } from "./incoming.js";
+import { hydrateIcons } from "./icons.js";
 
 // ---- deep link: Android app://join/{code} → /?join={code} ----
 (function captureJoin() {
@@ -91,6 +92,7 @@ const origSetPet = store.setPetId.bind(store);
 store.setPetId = (id) => { origSetPet(id); if (id) petCheck = { done: true, hasPet: true }; };
 
 // ---- boot ----
+hydrateIcons(); // 정적 마크업(탭바) 아이콘 주입
 if (!location.hash) location.hash = store.isAuthed ? "/home" : "/auth";
 startRouter();
 startIncomingWatch(); // 전역 매칭 요청 폴링 배너

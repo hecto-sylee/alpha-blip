@@ -1,10 +1,10 @@
 // screens/rooms.js — 방 탭 (R1): 로그 피드 랜딩 · SCR-24 방 생성 · SCR-26 참여 (F-11)
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, loading, staggerMotion } from "../ui.js";
+import { el, mount, toast, setTab, loading, staggerMotion, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
-const MODE_LABEL = { walk_friend: "🐕 산책 친구", family: "👨‍👩‍👧 가족" };
+const MODE_LABEL = { walk_friend: "산책 친구", family: "가족" };
 
 function fmtWhen(rec) {
   if (rec.walked_at) return rec.walked_at;
@@ -28,7 +28,7 @@ export async function roomsListScreen() {
 
   const pending = store.pendingJoin
     ? el("div.banner", { onclick: () => navigate("/rooms/join") }, [
-        el("span", { text: "🔗" }),
+        icon("link"),
         el("span", { text: `초대 코드 ${store.pendingJoin} 로 참여하기` }),
       ])
     : null;
@@ -42,11 +42,10 @@ export async function roomsListScreen() {
         header,
         pending,
         el("div.empty", {}, [
-          el("div.big", { text: "🏠" }),
+          el("div.big", {}, [icon("house")]),
           el("p", { text: "아직 참여한 방이 없어요." }),
           el("p.sub", { text: "방을 만들거나 코드로 참여해 펫 로그를 함께 쌓아보세요." }),
         ]),
-        el("div", { style: "height:4px" }),
         createBtn,
         joinBtn,
       ])
@@ -68,7 +67,7 @@ export async function roomsListScreen() {
   feed.sort((a, b) => (String(a.rec.created_at) < String(b.rec.created_at) ? 1 : -1));
 
   const state = { filter: "all" };
-  const chipRow = el("div.row", { id: "room-filter", style: "overflow-x:auto; padding:2px 0; flex-wrap:nowrap" });
+  const chipRow = el("div.chip-row", { id: "room-filter" });
   const feedWrap = el("div.stack", { id: "room-feed" });
 
   function renderChips() {
@@ -80,7 +79,7 @@ export async function roomsListScreen() {
     chipRow.append(all);
     rooms.forEach((r) => {
       const c = el("span.chip" + (state.filter === r.room_id ? ".on" : ""), {
-        text: r.name, dataset: { filter: r.room_id }, style: "white-space:nowrap",
+        text: r.name, dataset: { filter: r.room_id },
         onclick: () => { state.filter = r.room_id; renderChips(); renderFeed(); },
       });
       chipRow.append(c);
@@ -93,7 +92,7 @@ export async function roomsListScreen() {
     if (!items.length) {
       feedWrap.append(
         el("div.empty", {}, [
-          el("div.big", { text: "📸" }),
+          el("div.big", {}, [icon("camera")]),
           el("p", { text: "아직 공유된 로그가 없어요." }),
           el("p.sub", { text: "방에 첫 기록을 올려보세요." }),
         ])
@@ -115,7 +114,6 @@ export async function roomsListScreen() {
       pending,
       chipRow,
       feedWrap,
-      el("div", { style: "height:4px" }),
       createBtn,
       joinBtn,
     ])
@@ -131,7 +129,7 @@ function feedCard(rec, room) {
   if (rec.clips && rec.clips.length) {
     rec.clips.forEach((c) => {
       const chip = el("div.clip-chip", { dataset: { clipId: c.id } });
-      chip.append(el("span", { text: "🎬" }));
+      chip.append(icon("film"));
       clips.append(chip);
       (async () => {
         try {
@@ -150,13 +148,13 @@ function feedCard(rec, room) {
     : null;
 
   return el(
-    "div.card.tl-item",
-    { dataset: { rid: rec.id, roomId: room.room_id }, style: "cursor:pointer", onclick: () => navigate(`/room/${room.room_id}`) },
+    "div.card.tl-item.clickable",
+    { dataset: { rid: rec.id, roomId: room.room_id }, onclick: () => navigate(`/room/${room.room_id}`) },
     [
       el("div.tl-head", {}, [
-        el("div.av", { text: "🐾" }),
+        el("div.av", {}, [icon("paw-print")]),
         el("div", {}, [
-          el("div", { style: "font-weight:800", text: author ? author.nickname : "멤버" }),
+          el("div.strong", { text: author ? author.nickname : "멤버" }),
           el("div.sub", {}, [el("span.chip.on", { text: room.name }), el("span", { text: `  ${fmtWhen(rec)}` })]),
         ]),
       ]),
@@ -177,8 +175,8 @@ export async function roomCreateScreen() {
   nameI.addEventListener("input", () => { state.name = nameI.value; cta.disabled = !state.name.trim(); });
 
   const modeSeg = el("div.seg", { id: "mode-seg" });
-  [["walk_friend", "🐕 산책 친구"], ["family", "👨‍👩‍👧 가족"]].forEach(([val, label]) => {
-    const o = el("div.opt" + (val === state.mode ? ".sel" : ""), { text: label, dataset: { val } });
+  [["walk_friend", "dog", "산책 친구"], ["family", "users", "가족"]].forEach(([val, ic, label]) => {
+    const o = el("div.opt" + (val === state.mode ? ".sel" : ""), { dataset: { val } }, [icon(ic), ` ${label}`]);
     o.addEventListener("click", () => {
       state.mode = val;
       modeSeg.querySelectorAll(".opt").forEach((n) => n.classList.remove("sel"));
@@ -191,7 +189,7 @@ export async function roomCreateScreen() {
     cta.disabled = true; cta.textContent = "만드는 중…";
     try {
       const res = await api.post("/rooms", { name: state.name.trim(), mode: state.mode });
-      toast("방을 만들었어요 🎉", "ok");
+      toast("방을 만들었어요", "ok", "party-popper");
       navigate(`/room/${res.room_id}`);
     } catch (e) {
       toast(e.message || "생성 실패", "err");
