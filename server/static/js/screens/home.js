@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, setTab, setWho, toast, icon } from "../ui.js";
 import { navigate } from "../router.js";
+import { petCharacterEl } from "../character.js";
 
 export async function homeScreen() {
   setTab("walk");
@@ -60,7 +61,7 @@ export async function homeScreen() {
       pet
         ? el("div.card.tappable.home-pet-card", { id: "my-pet-card", onclick: () => navigate(`/pet/${pet.id}`) }, [
             el("div.row", {}, [
-              el("div.pet-avatar.home-pet-avatar", {}, [icon("dog")]),
+              el("div.pet-avatar.home-pet-avatar.has-char", {}, [petCharacterEl(pet, { size: 56 })]),
               el("div.grow", {}, [
                 el("div.title", { text: pet.name }),
                 el("div.sub", { text: pet.breed || "견종 미입력" }),

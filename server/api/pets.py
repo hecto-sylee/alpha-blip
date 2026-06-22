@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
 from ..models import Pet, User
-from ..schemas import PetCreateReq, PetCreateRes, PetRes, PetUpdateReq
+from ..schemas import PetCreateReq, PetCreateRes, PetListRes, PetRes, PetUpdateReq
 from ..utils.events import log_event
 
 router = APIRouter(tags=["pets"])
@@ -73,6 +73,20 @@ def create_pet(
     log_event(db, "pet_create", user_id=user.id, payload={"pet_id": pet.id})
     db.commit()
     return PetCreateRes(pet_id=pet.id)
+
+
+@router.get("/pets", response_model=PetListRes)
+def list_pets(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PetListRes:
+    pets = (
+        db.query(Pet)
+        .filter(Pet.user_id == user.id)
+        .order_by(Pet.created_at.asc())
+        .all()
+    )
+    return PetListRes(pets=[_to_res(p) for p in pets])
 
 
 @router.get("/pets/{pet_id}", response_model=PetRes)

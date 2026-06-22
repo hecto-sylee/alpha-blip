@@ -14,6 +14,7 @@ import { diaryScreen, recordViewScreen } from "./screens/diary.js";
 import { roomsListScreen, roomCreateScreen, roomJoinScreen } from "./screens/rooms.js";
 import { roomViewScreen } from "./screens/room_view.js";
 import { myScreen, settingsScreen } from "./screens/my.js";
+import { petsScreen } from "./screens/pets.js";
 import { achievementsScreen } from "./screens/achievements.js";
 import { leagueScreen } from "./screens/league.js";
 import { startIncomingWatch } from "./incoming.js";
@@ -51,6 +52,7 @@ route("/room/:id", roomViewScreen);
 // 랭킹 · 마이 · 설정 (FE4)
 route("/league", leagueScreen);
 route("/my", myScreen);
+route("/pets", petsScreen);
 route("/achievements", achievementsScreen);
 route("/settings", settingsScreen);
 

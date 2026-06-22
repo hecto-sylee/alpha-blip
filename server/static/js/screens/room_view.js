@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, loading, bottomSheet, icon } from "../ui.js";
 import { navigate } from "../router.js";
+import { petCharacterEl } from "../character.js";
 
 const EMOJIS = ["❤️", "😂", "🔥", "👍", "😮"]; // 반응 이모지(데이터성) — 유지
 const MODE_LABEL = { walk_friend: "산책 친구", family: "가족" };
@@ -30,7 +31,7 @@ function render(room) {
 
   const members = el("div.member-chips", {},
     (room.members || []).map((m) =>
-      el("div.member-chip", {}, [el("span.av", {}, [icon("paw-print")]), el("span", { text: m.nickname || "익명" })])
+      el("div.member-chip", {}, [el("span.av.has-char", {}, [petCharacterEl(m.pet || { id: m.user_id, name: m.nickname }, { size: 22 })]), el("span", { text: m.nickname || "익명" })])
     )
   );
 
@@ -112,7 +113,7 @@ function timelineItem(rec, room) {
 
   const item = el("div.card.tl-item", { dataset: { rid: rec.id } }, [
     el("div.tl-head", {}, [
-      el("div.av", {}, [icon("paw-print")]),
+      el("div.av.has-char", {}, [petCharacterEl((author && author.pet) || { id: rec.user_id, name: author ? author.nickname : "멤버" }, { size: 36 })]),
       el("div", {}, [
         el("div.strong", { text: author ? author.nickname : "멤버" }),
         el("div.sub", { text: rec.walked_at || "" }),

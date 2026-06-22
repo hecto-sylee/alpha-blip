@@ -1,4 +1,5 @@
 // ui.js — DOM 헬퍼 · 토스트 · 바텀시트 · 스프링 전환 · 햅틱 · reduced-motion
+import { petCharacterEl } from "./character.js";
 import { icon } from "./icons.js";
 export { icon };
 
@@ -195,7 +196,7 @@ async function springSheet(sheet) {
 }
 
 // ---------------- Celebration (matching success) ----------------
-export async function celebrate() {
+export async function celebrate(pet) {
   if (reducedMotion()) return;
   navigator.vibrate?.([20, 40, 30]);
   const motion = await motionWithin();
@@ -206,8 +207,16 @@ export async function celebrate() {
     style: "position:fixed;inset:0;z-index:70;pointer-events:none;overflow:hidden",
   });
   const mascot = el("div.celebrate-mascot", {
-    style: "position:absolute;left:50%;top:42%;font-size:4.2rem;color:var(--primary);filter:drop-shadow(var(--shadow-pop));transform:translate(-50%,-50%) scale(.2);opacity:0",
-  }, [icon("dog")]);
+    style: "position:absolute;left:50%;top:42%;filter:drop-shadow(var(--shadow-pop));transform:translate(-50%,-50%) scale(.2);opacity:0",
+  });
+  if (pet) {
+    mascot.style.width = mascot.style.height = "132px";
+    mascot.append(petCharacterEl(pet, { size: 132 }));
+  } else {
+    mascot.style.fontSize = "4.2rem";
+    mascot.style.color = "var(--primary)";
+    mascot.append(icon("dog"));
+  }
   layer.append(mascot);
   motion.animate(
     mascot,
