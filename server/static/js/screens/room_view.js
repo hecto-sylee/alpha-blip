@@ -1,11 +1,12 @@
 // screens/room_view.js — SCR-25 방 상세 (타임라인·반응·멤버·기록올리기) (F-11)
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, loading, bottomSheet } from "../ui.js";
+import { el, mount, toast, setTab, loading, bottomSheet, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
-const EMOJIS = ["❤️", "😂", "🔥", "👍", "😮"];
-const MODE_LABEL = { walk_friend: "🐕 산책 친구", family: "👨‍👩‍👧 가족" };
+const EMOJIS = ["❤️", "😂", "🔥", "👍", "😮"]; // 반응 이모지(데이터성) — 유지
+const MODE_LABEL = { walk_friend: "산책 친구", family: "가족" };
+const MODE_ICON = { walk_friend: "dog", family: "users" };
 
 export async function roomViewScreen(params) {
   setTab("room");
@@ -29,11 +30,11 @@ function render(room) {
 
   const members = el("div.member-chips", {},
     (room.members || []).map((m) =>
-      el("div.member-chip", {}, [el("span.av", { text: "🐾" }), el("span", { text: m.nickname || "익명" })])
+      el("div.member-chip", {}, [el("span.av", {}, [icon("paw-print")]), el("span", { text: m.nickname || "익명" })])
     )
   );
 
-  const postBtn = el("button.cta", { id: "post-record", text: "📸 방에 기록 올리기", onclick: () => navigate(`/record?room=${room.room_id}`) });
+  const postBtn = el("button.cta", { id: "post-record", onclick: () => navigate(`/record?room=${room.room_id}`) }, [icon("camera"), " 방에 기록 올리기"]);
 
   const timeline = el("div.stack", { id: "room-timeline" });
   renderTimeline(timeline, room);
@@ -47,12 +48,12 @@ function render(room) {
         el("button.btn.ghost", { text: "나가기", onclick: () => leaveRoom(room) }),
       ]),
       el("h1.h1", { text: room.name }),
-      el("div.row", {}, [el("span.chip.on", { text: MODE_LABEL[room.mode] || room.mode }), el("span.spacer")]),
+      el("div.row", {}, [el("span.chip.on", {}, [icon(MODE_ICON[room.mode] || "users"), " " + (MODE_LABEL[room.mode] || room.mode)]), el("span.spacer")]),
 
       el("div.h2", { text: `멤버 ${(room.members || []).length}명` }),
       members,
 
-      room.today_quest ? el("div.badge", { text: `🎯 오늘의 방 퀘스트: ${room.today_quest.title}` }) : null,
+      room.today_quest ? el("div.badge", {}, [icon("target"), ` 오늘의 방 퀘스트: ${room.today_quest.title}`]) : null,
 
       postBtn,
 
@@ -84,7 +85,7 @@ function renderTimeline(container, room) {
   container.innerHTML = "";
   const tl = room.timeline || [];
   if (!tl.length) {
-    container.append(el("div.empty", {}, [el("div.big", { text: "📸" }), el("p", { text: "아직 공유된 기록이 없어요." }), el("p.sub", { text: "첫 기록을 올려 친구와 나눠요." })]));
+    container.append(el("div.empty", {}, [el("div.big", {}, [icon("camera")]), el("p", { text: "아직 공유된 기록이 없어요." }), el("p.sub", { text: "첫 기록을 올려 친구와 나눠요." })]));
     return;
   }
   tl.forEach((rec) => container.append(timelineItem(rec, room)));
@@ -96,7 +97,7 @@ function timelineItem(rec, room) {
   if (rec.clips && rec.clips.length) {
     rec.clips.forEach((c) => {
       const chip = el("div.clip-chip", { dataset: { clipId: c.id } });
-      chip.append(el("span", { text: "🎬" }));
+      chip.append(icon("film"));
       clips.append(chip);
       (async () => {
         try {
@@ -111,9 +112,9 @@ function timelineItem(rec, room) {
 
   const item = el("div.card.tl-item", { dataset: { rid: rec.id } }, [
     el("div.tl-head", {}, [
-      el("div.av", { text: "🐾" }),
+      el("div.av", {}, [icon("paw-print")]),
       el("div", {}, [
-        el("div", { style: "font-weight:700", text: author ? author.nickname : "멤버" }),
+        el("div.strong", { text: author ? author.nickname : "멤버" }),
         el("div.sub", { text: rec.walked_at || "" }),
       ]),
     ]),

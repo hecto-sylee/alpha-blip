@@ -1,7 +1,7 @@
 // screens/quest.js — SCR-27 오늘의 퀘스트 (F-12). M3 Expressive.
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, loading, staggerMotion } from "../ui.js";
+import { el, mount, toast, setTab, loading, staggerMotion, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
 function todayStr() {
@@ -35,7 +35,7 @@ function renderPicker(candidates) {
     const card = el("div.quest-card", { dataset: { qt: q.quest_template_id } }, [
       el("div.q-title", { text: q.title }),
       el("div.q-desc", { text: q.description || "" }),
-      el("div.row", { style: "flex-wrap:wrap;gap:6px;margin-top:10px" },
+      el("div.row.wrap.gap-sm.q-chips", {},
         (q.missions || []).map((m) => el("span.chip", { text: m.title }))),
     ]);
     card.addEventListener("click", () => {
@@ -57,7 +57,7 @@ function renderPicker(candidates) {
         quest_template_id: selected.quest_template_id,
         quest_date: todayStr(),
       });
-      toast("오늘의 퀘스트를 정했어요 🎯", "ok");
+      toast("오늘의 퀘스트를 정했어요", "ok", "target");
       renderLocked(selected);
     } catch (e) {
       toast(e.message || "선택에 실패했어요", "err");
@@ -69,8 +69,7 @@ function renderPicker(candidates) {
     el("div.stack", {}, [
       el("h1.h1", { text: "오늘의 퀘스트" }),
       el("p.sub", { text: "오늘 산책에서 담아볼 주제를 하나 골라요. (하루 1개)" }),
-      ...(cards.length ? cards : [el("div.empty", {}, [el("div.big", { text: "🎯" }), el("p", { text: "후보 퀘스트가 없어요" })])]),
-      el("div", { style: "height:4px" }),
+      ...(cards.length ? cards : [el("div.empty", {}, [el("div.big", {}, [icon("target")]), el("p", { text: "후보 퀘스트가 없어요" })])]),
       cta,
     ])
   );
@@ -89,17 +88,16 @@ function renderLocked(quest) {
     ])
   );
 
-  const cta = el("button.cta", { id: "go-record", text: "📸 기록하기" });
+  const cta = el("button.cta", { id: "go-record" }, [icon("camera"), " 기록하기"]);
   cta.addEventListener("click", () => navigate("/record"));
 
   mount(
     el("div.stack", { id: "quest-locked" }, [
-      el("div.badge", { text: "🔒 오늘의 퀘스트 (변경 불가)" }),
+      el("div.badge", {}, [icon("lock"), " 오늘의 퀘스트 (변경 불가)"]),
       el("h1.h1", { text: quest.title }),
       el("p.sub", { text: quest.description || "" }),
       el("div.h2", { text: "지금 찍어볼 순간" }),
       ...missions,
-      el("div", { style: "height:4px" }),
       cta,
     ])
   );

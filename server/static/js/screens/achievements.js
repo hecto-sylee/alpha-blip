@@ -66,7 +66,6 @@ export async function achievementsScreen() {
         el("div.ach-overbar", {}, [el("div.ach-overbar-fill", { style: `width:${pct}%` })]),
       ]),
       ...sections,
-      el("div", { style: "height:12px" }),
     ])
   );
 

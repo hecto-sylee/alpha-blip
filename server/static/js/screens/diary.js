@@ -1,6 +1,6 @@
 // screens/diary.js — SCR-21 다이어리(캘린더+스탯) · SCR-22 기록 상세 (F-10).
 import { api } from "../api.js";
-import { el, mount, toast, setTab, loading, springMotion, staggerMotion, reducedMotion } from "../ui.js";
+import { el, mount, toast, setTab, loading, springMotion, staggerMotion, reducedMotion, icon } from "../ui.js";
 import { navigate } from "../router.js";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
@@ -37,15 +37,15 @@ export async function diaryScreen(_params = {}, query = {}) {
   const playSavedSettle = query.saved === "1" || sessionStorage.getItem("blip_record_saved_motion") === "1";
 
   // 최근 기록 리스트
-  const fab = el("button.fab", { id: "fab-record", title: "기록하기", text: "📸", onclick: () => navigate("/record") });
+  const fab = el("button.fab", { id: "fab-record", title: "기록하기", onclick: () => navigate("/record") }, [icon("camera")]);
 
   const list = diary.length
     ? el("div.stack", {}, diary.slice(0, 30).map(recordItem))
-    : el("div.empty", {}, [el("div.big", { text: "📔" }), el("p", { text: "아직 기록이 없어요." }), el("button.btn", { text: "첫 기록 남기기", onclick: () => navigate("/record") })]);
+    : el("div.empty", {}, [el("div.big", {}, [icon("notebook")]), el("p", { text: "아직 기록이 없어요." }), el("button.btn", { text: "첫 기록 남기기", onclick: () => navigate("/record") })]);
 
   const wrap = mount(
     el("div.stack", {}, [
-      el("div.row", {}, [el("h1.h1", { text: "다이어리" }), el("span.spacer"), el("button.btn", { id: "go-rooms", text: "👥 방", onclick: () => navigate("/rooms") })]),
+      el("div.row", {}, [el("h1.h1", { text: "다이어리" }), el("span.spacer"), el("button.btn", { id: "go-rooms", onclick: () => navigate("/rooms") }, [icon("users"), " 방"])]),
       stats,
       cal,
       el("div.h2", { text: "최근 기록" }),
@@ -154,12 +154,12 @@ function buildCalendar(now, byDate) {
 }
 
 function recordItem(r) {
-  const thumb = el("div.rec-thumb", { text: r.clips && r.clips.length ? "🎬" : "📝" });
+  const thumb = el("div.rec-thumb", {}, [icon(r.clips && r.clips.length ? "film" : "file-text")]);
   const card = el("div.card.tappable", { dataset: { rid: r.id }, onclick: () => navigate(`/record/${r.id}`) }, [
     el("div.rec-item", {}, [
       thumb,
-      el("div", { style: "flex:1" }, [
-        el("div", { style: "font-weight:700", text: r.walked_at || "" }),
+      el("div.grow", {}, [
+        el("div.strong", { text: r.walked_at || "" }),
         el("div.sub", { text: (r.text || "기록").slice(0, 30) }),
         el("div.sub", { text: `클립 ${r.clips ? r.clips.length : 0}개${r.daily_quest_id ? " · 퀘스트" : ""}` }),
       ]),
@@ -184,7 +184,7 @@ export async function recordViewScreen(params) {
       const url = await api.blobUrl(c.stream_url.replace("/api", ""));
       const v = el("video", { src: url, controls: "", playsinline: "", muted: "" }); v.muted = true;
       chip.append(v);
-    } catch { chip.append(el("span", { text: "🎬" })); }
+    } catch { chip.append(icon("film")); }
     clipsWrap.append(chip);
   }
   if (!rec.clips || !rec.clips.length) clipsWrap.append(el("p.sub", { text: "클립 없음" }));
@@ -208,7 +208,7 @@ export async function recordViewScreen(params) {
       el("div.row", {}, [
         el("button.btn.ghost", { text: "← 다이어리", onclick: () => navigate("/diary") }),
         el("span.spacer"),
-        el("span.badge", { text: rec.visibility === "room" ? "👥 방 공유" : "📔 일기" }),
+        el("span.badge", {}, [icon(rec.visibility === "room" ? "users" : "notebook"), rec.visibility === "room" ? " 방 공유" : " 일기"]),
       ]),
       el("h1.h1", { text: rec.walked_at || "산책 기록" }),
       el("div.sub", { text: `${rec.duration_minutes ? rec.duration_minutes + "분 · " : ""}${rec.distance_meters ? (rec.distance_meters / 1000).toFixed(1) + "km" : ""}` }),

@@ -1,4 +1,7 @@
 // ui.js — DOM 헬퍼 · 토스트 · 바텀시트 · 스프링 전환 · 햅틱 · reduced-motion
+import { icon } from "./icons.js";
+export { icon };
+
 export const reducedMotion = () =>
   window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -126,9 +129,11 @@ export function mount(node) {
 }
 
 // ---------------- Toast ----------------
-export function toast(msg, kind = "") {
+export function toast(msg, kind = "", iconName = null) {
   const root = document.getElementById("toasts");
-  const t = el("div.toast" + (kind ? "." + kind : ""), { text: msg });
+  const t = el("div.toast" + (kind ? "." + kind : ""), {},
+    iconName ? [icon(iconName, { cls: "toast-ic" }), el("span", { text: msg })]
+             : [el("span", { text: msg })]);
   root.append(t);
   if ("vibrate" in navigator && kind === "ok") navigator.vibrate?.(12);
   if ("vibrate" in navigator && kind === "err") navigator.vibrate?.([8, 40, 8]);
@@ -148,7 +153,7 @@ export function announceUnlocks(unlocked) {
   navigator.vibrate?.([16, 30, 16]);
   unlocked.forEach((a, i) => {
     setTimeout(() => {
-      const t = toast(`🏅 새 업적 · ${a.emoji} ${a.name}`, "ok");
+      const t = toast(`새 업적 · ${a.emoji} ${a.name}`, "ok", "award");
       t.classList.add("badge");
     }, i * 480);
   });
@@ -201,9 +206,8 @@ export async function celebrate() {
     style: "position:fixed;inset:0;z-index:70;pointer-events:none;overflow:hidden",
   });
   const mascot = el("div.celebrate-mascot", {
-    text: "🐶",
-    style: "position:absolute;left:50%;top:42%;font-size:4.2rem;filter:drop-shadow(0 10px 16px rgba(43,36,32,.18));transform:translate(-50%,-50%) scale(.2);opacity:0",
-  });
+    style: "position:absolute;left:50%;top:42%;font-size:4.2rem;color:var(--primary);filter:drop-shadow(var(--shadow-pop));transform:translate(-50%,-50%) scale(.2);opacity:0",
+  }, [icon("dog")]);
   layer.append(mascot);
   motion.animate(
     mascot,
@@ -218,15 +222,15 @@ export async function celebrate() {
     },
     { ...motion.SPRING, duration: 1.35 }
   );
-  const emojis = ["🎉", "🐶", "✨", "💛", "🐾"];
+  const confetti = ["party-popper", "dog", "sparkles", "heart", "paw-print"];
+  const colors = ["var(--primary)", "var(--secondary)", "var(--tertiary)", "var(--success)", "var(--danger)"];
   for (let i = 0; i < 28; i++) {
     const startX = 45 + Math.random() * 10;
     const dx = (Math.random() * 2 - 1) * 190;
     const dy = 180 + Math.random() * 260;
     const p = el("div", {
-      text: emojis[i % emojis.length],
-      style: `position:absolute;left:${startX}%;top:42%;font-size:${18 + Math.random() * 18}px;opacity:0;`,
-    });
+      style: `position:absolute;left:${startX}%;top:42%;font-size:${18 + Math.random() * 18}px;opacity:0;color:${colors[i % colors.length]};`,
+    }, [icon(confetti[i % confetti.length])]);
     motion.animate(
       p,
       {
