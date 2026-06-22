@@ -20,6 +20,10 @@ DEMO_LONGITUDE = 127.0398
 DEMO_ROOM_NAME = "데모 산책방"
 MOCK_NICKNAME = "테헤란로 망고"
 MOCK_PET_NAME = "망고"
+# 더미 사용자(망고)의 지도 위치 — 항상 이 절대좌표에 고정한다.
+MOCK_LATITUDE = 37.502844
+MOCK_LONGITUDE = 127.037194
+MOCK_LABEL = "망고 고정 위치"
 
 
 def _mock_token(user_id: str) -> str:
@@ -70,7 +74,7 @@ def _ensure_mock_pet(db: Session, mock: User) -> Pet:
     return pet
 
 
-def _ensure_mock_walk(db: Session, mock: User, pet: Pet, lat: float, lng: float) -> WalkSession:
+def _ensure_mock_walk(db: Session, mock: User, pet: Pet) -> WalkSession:
     sessions = (
         db.query(WalkSession)
         .filter(WalkSession.user_id == mock.id, WalkSession.status == "active")
@@ -87,11 +91,11 @@ def _ensure_mock_walk(db: Session, mock: User, pet: Pet, lat: float, lng: float)
         stale.status = "closed"
         stale.ended_at = stale.ended_at or utcnow()
 
-    # About 70-80m from the demo origin, inside the nearby radius.
+    # 더미 사용자는 데모 원점과 무관하게 항상 고정 좌표에 둔다.
     ws.pet_id = pet.id
     ws.status = "active"
-    ws.lat = lat + 0.00045
-    ws.lng = lng + 0.00055
+    ws.lat = MOCK_LATITUDE
+    ws.lng = MOCK_LONGITUDE
     ws.location_updated_at = utcnow()
     ws.is_location_visible = True
     return ws
@@ -142,7 +146,7 @@ def setup_demo(
 
     mock = _ensure_mock_user(db, user)
     pet = _ensure_mock_pet(db, mock)
-    walk = _ensure_mock_walk(db, mock, pet, lat, lng)
+    walk = _ensure_mock_walk(db, mock, pet)
     room = _ensure_demo_room(db, user, mock)
     db.commit()
 
@@ -153,4 +157,7 @@ def setup_demo(
         room_id=room.id,
         room_join_code=room.join_code,
         location=DemoLocation(latitude=lat, longitude=lng, label=DEMO_LABEL),
+        mock_location=DemoLocation(
+            latitude=MOCK_LATITUDE, longitude=MOCK_LONGITUDE, label=MOCK_LABEL
+        ),
     )

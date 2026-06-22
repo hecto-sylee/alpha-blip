@@ -152,6 +152,7 @@ class DemoSetupRes(BaseModel):
     room_id: str
     room_join_code: str
     location: DemoLocation
+    mock_location: DemoLocation
 
 
 # ---------------------------------------------------------------------------
