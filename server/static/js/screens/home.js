@@ -29,6 +29,8 @@ export async function homeScreen() {
         lat: demo.location.latitude,
         lng: demo.location.longitude,
         label: demo.location.label,
+        mockLat: demo.mock_location.latitude,
+        mockLng: demo.mock_location.longitude,
         mockSessionId: demo.mock_walk_session_id,
         mockPet: demo.mock_pet,
         roomId: demo.room_id,

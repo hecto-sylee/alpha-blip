@@ -94,6 +94,7 @@ export async function walkScreen() {
   const ctx = { map: null, markers: new Map(), here, walkId, useFallback: false, demo };
   initMap(ctx, mapEl, fallback);
   addDemoPeerMarker(ctx, demoPeerLayer);
+  frameDemo(ctx);
 
   document.getElementById("walk-coord").textContent = `${here.lat.toFixed(4)}, ${here.lng.toFixed(4)}`;
 
@@ -193,9 +194,9 @@ async function refreshNearby(ctx) {
       if (list) list.append(chip);
       ctx.markers.set(dog.walk_session_id, { chip, marker: null });
     } else {
-      const marker = new maplibregl.Marker({ element: chip, anchor: "bottom" })
-        .setLngLat([dog.approximate_location.longitude, dog.approximate_location.latitude])
-        .addTo(ctx.map);
+      const marker = placeChipMarker(
+        ctx, chip, dog.approximate_location.longitude, dog.approximate_location.latitude
+      );
       ctx.markers.set(dog.walk_session_id, { chip, marker });
     }
   }
@@ -208,6 +209,17 @@ async function refreshNearby(ctx) {
       ctx.markers.delete(ws);
     }
   }
+}
+
+// maplibre 마커로 칩을 배치한다. 칩의 marker-pop 애니메이션이 transform:none(both)으로
+// 끝나며 maplibre의 위치 transform을 덮어쓰는 문제를 피하려고 래퍼 div를 끼운다.
+// (maplibre는 래퍼에 transform, 애니메이션은 안쪽 칩에만 적용)
+function placeChipMarker(ctx, chip, lng, lat) {
+  const wrap = el("div.marker-wrap", {});
+  wrap.appendChild(chip);
+  return new maplibregl.Marker({ element: wrap, anchor: "bottom" })
+    .setLngLat([lng, lat])
+    .addTo(ctx.map);
 }
 
 function dogMarker(dog, onTap) {
@@ -225,20 +237,53 @@ function dogMarker(dog, onTap) {
   );
 }
 
+// 데모: 내 위치(데모 원점)를 중심으로 잡아 주변 더미 친구(망고·초코·콩)가
+// 한 화면에 고르게 들어오게 한다. (마커는 각자 고정 좌표 그대로, 화면만 맞춤)
+function frameDemo(ctx) {
+  if (!ctx.map || !ctx.demo || ctx.useFallback) return;
+  const center = [ctx.here.lng, ctx.here.lat];
+  const apply = () => { try { ctx.map.jumpTo({ center, zoom: 15 }); } catch (_) {} };
+  if (ctx.map.loaded()) apply(); else ctx.map.on("load", apply);
+}
+
+function metersBetween(aLat, aLng, bLat, bLng) {
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (bLat - aLat) * rad, dLng = (bLng - aLng) * rad;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
 function addDemoPeerMarker(ctx, layer) {
   const demo = ctx.demo;
-  if (!demo?.mockSessionId || !layer || ctx.markers.has(demo.mockSessionId)) return;
+  if (!demo?.mockSessionId || ctx.markers.has(demo.mockSessionId)) return;
   const pet = demo.mockPet || { name: "테헤란로 망고", breed: "비숑", personality_tags: ["데모"] };
+  const hasCoord = typeof demo.mockLat === "number" && typeof demo.mockLng === "number";
   const dog = {
     walk_session_id: demo.mockSessionId,
     pet: { ...pet, name: pet.name || "테헤란로 망고" },
-    distance_meters: 80,
+    approximate_location: hasCoord
+      ? { latitude: demo.mockLat, longitude: demo.mockLng }
+      : null,
+    distance_meters: hasCoord
+      ? Math.round(metersBetween(ctx.here.lat, ctx.here.lng, demo.mockLat, demo.mockLng))
+      : 80,
     is_demo: true,
   };
   const chip = dogMarker(dog, () => openPreview(dog, ctx));
   chip.setAttribute("aria-label", "데모 상대 사용자");
-  layer.append(chip);
-  ctx.markers.set(demo.mockSessionId, { chip, marker: null, demo: true });
+  // 지도가 살아 있으면 고정 좌표에 지리적 마커로 박는다(지도를 움직여도 그 지점에 고정).
+  if (ctx.map && !ctx.useFallback && hasCoord) {
+    // 스타일 load 이후에 추가해야 jumpTo 등 카메라 변경에 맞춰 정상 투영된다.
+    const place = () => placeChipMarker(ctx, chip, demo.mockLng, demo.mockLat);
+    if (ctx.map.loaded()) place(); else ctx.map.on("load", place);
+    ctx.markers.set(demo.mockSessionId, { chip, marker: true, demo: true });
+  } else {
+    // 폴백(WebGL 불가): 떠다니는 오버레이 칩으로 표시.
+    layer?.append(chip);
+    ctx.markers.set(demo.mockSessionId, { chip, marker: null, demo: true });
+  }
 }
 
 async function loadQuestBanner() {

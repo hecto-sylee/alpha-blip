@@ -1,10 +1,47 @@
 """Quest seed loader (06_quest_seed.md). Idempotent — skips if already loaded."""
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
-from .models import QuestMission, QuestTemplate
+from .models import Pet, QuestMission, QuestTemplate, User, WalkSession, utcnow
+
+# 데모 더미 친구들 — 데모 위치 근처에 고정으로 떠 있는 '매칭 대기' 유저.
+# is_mock=False 라서 (1) 모든 사용자의 nearby에 보이고 (2) 매칭 요청 시 자동수락되지
+# 않는다(망고만 is_mock=True 라 즉시 자동수락). 토큰으로 idempotent 하게 식별한다.
+DEMO_DUMMY_PREFIX = "demo-dummy:"
+DEMO_DUMMIES = [
+    {
+        "token": DEMO_DUMMY_PREFIX + "choco",
+        "nickname": "한강 초코",
+        "pet_name": "초코",
+        "breed": "푸들",
+        "size": "small",
+        "tags": ["온순함", "낯가림 없음"],
+        "sociality": 4,
+        "activity_level": 3,
+        "walk_style": "sniff",
+        "caution_notes": "데모용 더미 프로필입니다.",
+        "lat": 37.5006,
+        "lng": 127.0406,
+    },
+    {
+        "token": DEMO_DUMMY_PREFIX + "kong",
+        "nickname": "테헤란 콩",
+        "pet_name": "콩",
+        "breed": "말티즈",
+        "size": "small",
+        "tags": ["활발함", "공놀이 좋아함"],
+        "sociality": 5,
+        "activity_level": 4,
+        "walk_style": "active",
+        "caution_notes": "데모용 더미 프로필입니다.",
+        "lat": 37.5014,
+        "lng": 127.0402,
+    },
+]
 
 QUESTS = [
     # solo
@@ -145,9 +182,61 @@ def _load(db: Session) -> None:
     db.commit()
 
 
+def _ensure_demo_dummies(db: Session) -> None:
+    """초코·콩 더미 유저/펫/활성 산책을 고정 좌표로 보장한다(idempotent)."""
+    for d in DEMO_DUMMIES:
+        user = db.query(User).filter(User.auth_token == d["token"]).first()
+        if user is None:
+            user = User(nickname=d["nickname"], auth_token=d["token"], is_mock=False)
+            db.add(user)
+            db.flush()
+        else:
+            user.nickname = d["nickname"]
+            user.is_mock = False  # 자동수락 대상이 아님(매칭 대기)
+
+        pet = (
+            db.query(Pet).filter(Pet.user_id == user.id).order_by(Pet.created_at.asc()).first()
+        )
+        if pet is None:
+            pet = Pet(
+                user_id=user.id,
+                name=d["pet_name"],
+                breed=d["breed"],
+                size=d["size"],
+                personality_tags=json.dumps(d["tags"], ensure_ascii=False),
+                sociality=d["sociality"],
+                activity_level=d["activity_level"],
+                walk_style=d["walk_style"],
+                caution_notes=d["caution_notes"],
+            )
+            db.add(pet)
+            db.flush()
+        else:
+            pet.name = d["pet_name"]
+
+        ws = (
+            db.query(WalkSession)
+            .filter(WalkSession.user_id == user.id, WalkSession.status == "active")
+            .order_by(WalkSession.started_at.desc())
+            .first()
+        )
+        if ws is None:
+            ws = WalkSession(user_id=user.id, pet_id=pet.id, status="active")
+            db.add(ws)
+            db.flush()
+        ws.pet_id = pet.id
+        ws.status = "active"
+        ws.lat = d["lat"]
+        ws.lng = d["lng"]
+        ws.location_updated_at = utcnow()
+        ws.is_location_visible = True
+    db.commit()
+
+
 def run() -> None:
     db = SessionLocal()
     try:
         _load(db)
+        _ensure_demo_dummies(db)
     finally:
         db.close()
