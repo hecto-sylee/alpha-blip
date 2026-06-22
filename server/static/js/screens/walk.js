@@ -6,6 +6,7 @@ import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { getOnce, watch, fmtDistance } from "../geo.js";
 import { openPreview } from "./match.js";
+import { petCharacterEl } from "../character.js";
 
 const OSM_STYLE = {
   version: 8,
@@ -22,6 +23,9 @@ const OSM_STYLE = {
 
 export async function walkScreen() {
   setTab(null);
+
+  let myPet = null;
+  try { myPet = (await api.get("/auth/me")).pets?.[0] || null; } catch (_) {}
 
   const demo = store.demo;
   let here;
@@ -91,7 +95,7 @@ export async function walkScreen() {
   onLeave(() => document.getElementById("view")?.classList.remove("walk-view"));
 
   // --- map init (graceful fallback if WebGL/MapLibre unavailable) ---
-  const ctx = { map: null, markers: new Map(), here, walkId, useFallback: false, demo };
+  const ctx = { map: null, markers: new Map(), here, walkId, useFallback: false, demo, myPet };
   initMap(ctx, mapEl, fallback);
   addDemoPeerMarker(ctx, demoPeerLayer);
 
@@ -171,7 +175,9 @@ function enableFallback(ctx, fallback) {
 function updateMe(ctx) {
   if (!ctx.map) return;
   if (!ctx._me) {
-    ctx._me = new maplibregl.Marker({ element: el("div.me-marker", { id: "me-marker" }) });
+    const meEl = el("div.me-marker" + (ctx.myPet ? ".has-char" : ""), { id: "me-marker" });
+    if (ctx.myPet) meEl.append(petCharacterEl(ctx.myPet, { size: 40 }));
+    ctx._me = new maplibregl.Marker({ element: meEl });
   }
   ctx._me.setLngLat([ctx.here.lng, ctx.here.lat]).addTo(ctx.map);
 }
@@ -216,7 +222,7 @@ function dogMarker(dog, onTap) {
     "div.dog-marker" + (dog.is_demo ? ".demo-peer-marker" : ""),
     { dataset: { ws: dog.walk_session_id }, onclick: onTap },
     [
-      el("div.face", { text: dog.is_demo ? "👤" : "🐶" }),
+      el("div.face", {}, [petCharacterEl(pet, { size: 34 })]),
       el("div.meta", {}, [
         el("div.nm", { text: pet.name || "강아지" }),
         el("div.ds", { text: fmtDistance(dog.distance_meters) }),

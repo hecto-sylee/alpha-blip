@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, loading } from "../ui.js";
 import { navigate } from "../router.js";
+import { petCharacterEl } from "../character.js";
 
 // ---------------- SCR-30 마이페이지 ----------------
 export async function myScreen() {
@@ -24,7 +25,7 @@ export async function myScreen() {
       el("h1.h1", { text: "마이" }),
       el("div.card", {}, [
         el("div.my-head", {}, [
-          el("div.av", { text: "🙂" }),
+          pet ? el("div.av.has-char", {}, [petCharacterEl(pet, { size: 64 })]) : el("div.av", { text: "🙂" }),
           el("div", {}, [
             el("div.nm", { text: me?.nickname || "게스트" }),
             el("div.sub", { text: pet ? `${pet.name} · ${pet.breed || "견종 미입력"}` : "반려동물 미등록" }),
@@ -42,7 +43,7 @@ export async function myScreen() {
 
       el("div.card", {}, [
         pet
-          ? linkRow("🐶", "반려동물 관리", () => navigate(`/pet/${pet.id}`))
+          ? linkRow("🐶", "반려동물 관리", () => navigate("/pets"))
           : linkRow("➕", "반려동물 등록", () => navigate("/onboard-pet")),
         linkRow("🏅", "업적", () => navigate("/achievements")),
         linkRow("🔒", "개인정보 보호 설정", () => navigate("/settings")),

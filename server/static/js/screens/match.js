@@ -4,6 +4,7 @@ import { el, mount, toast, setTab, bottomSheet, celebrate, onLeave, announceUnlo
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
 import { fmtDistance } from "../geo.js";
+import { petCharacterEl } from "../character.js";
 
 // ---------------- SCR-12 상대 프로필 미리보기 (바텀시트) ----------------
 export function openPreview(dog, ctx) {
@@ -26,7 +27,7 @@ export function openPreview(dog, ctx) {
 
     return el("div.stack", { id: "preview-sheet" }, [
       el("div.row", {}, [
-        el("div.pet-avatar", { text: "🐶" }),
+        el("div.pet-avatar.has-char", {}, [petCharacterEl(pet, { size: 56 })]),
         el("div", {}, [
           el("div", { style: "font-weight:800;font-size:1.25rem", text: pet.name || "강아지" }),
           el("div.sub", { text: `${pet.breed || "견종 미상"} · ${fmtDistance(dog.distance_meters)} 근처` }),
@@ -110,6 +111,9 @@ export async function sessionScreen(params) {
   const ppet = partner.pet || {};
   const started = parseServerTime(session.started_at);
 
+  let myPet = null;
+  try { myPet = (await api.get("/auth/me")).pets?.[0] || null; } catch (_) {}
+
   const timerEl = el("div.timer", { id: "session-timer", text: "00:00" });
   const endBtn = el("button.cta", { id: "end-session", text: "산책 종료" });
 
@@ -130,7 +134,10 @@ export async function sessionScreen(params) {
 
   const hud = el("div.session-hud", {}, [
     el("div", { style: "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px" }, [
-      el("div", { style: "font-size:3.4rem", text: "🐶🐶" }),
+      el("div.session-pets", {}, [
+        el("div.session-pet", {}, [petCharacterEl(myPet || { name: "나" }, { size: 92 })]),
+        el("div.session-pet", {}, [petCharacterEl(ppet.name ? ppet : { name: partner.nickname || "친구" }, { size: 92 })]),
+      ]),
       el("h1.h1.center", { text: `${partner.nickname || "친구"}님과 산책 중` }),
       el("p.sub.center", { text: `${ppet.name || ""} ${ppet.breed ? "· " + ppet.breed : ""}` }),
       el("p.sub", { text: "동행 시간" }),
@@ -140,7 +147,7 @@ export async function sessionScreen(params) {
   ]);
 
   mount(hud);
-  celebrate(); // 매칭 성사 축하 모션
+  celebrate(myPet); // 매칭 성사 축하 모션
 
   const tick = () => {
     const s = Math.floor((Date.now() - started.getTime()) / 1000);

@@ -829,3 +829,60 @@ textarea.input { resize: vertical; min-height: 84px; }
 .lb-divider { display:flex; align-items:center; justify-content:center; gap:6px; font-size:.72rem; font-weight:900; padding:6px; margin:2px 4px; border-radius: var(--r-pill); }
 .lb-divider.promote { color: var(--success-shadow); background: var(--secondary-container); }
 .lb-divider.demote { color: var(--danger); background: #FFE3E0; }
+
+/* ---------------- Pet character (마스코트) ---------------- */
+.bp-char { display:block; line-height:0; flex:none; }
+.bp-char svg { display:block; width:100%; height:100%; overflow:visible; }
+
+/* 아바타 박스 안에 들어가면 박스를 꽉 채운다 */
+.pet-avatar.has-char, .av.has-char { background: var(--surface-2); }
+.pet-avatar .bp-char, .av .bp-char, .face .bp-char { width:100% !important; height:100% !important; }
+
+/* 매칭 세션 HUD: 두 캐릭터 나란히 */
+.session-pets { display:flex; gap:14px; align-items:flex-end; justify-content:center; }
+.session-pet { width:92px; height:92px; }
+
+/* 지도 '나' 마커: 내 강아지 표시 */
+.me-marker.has-char {
+  width:44px; height:44px; border-radius:50%;
+  background: var(--primary-container); border:3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(255,107,94,.25), var(--ambient);
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+
+/* idle 모션 — 숨쉬기 · 꼬리 · 깜빡임 */
+@keyframes bp-breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2.4px); } }
+@keyframes bp-wag { from { transform: rotate(-10deg); } to { transform: rotate(16deg); } }
+@keyframes bp-blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(.12); } }
+
+.bp-root { animation: bp-breathe 3.2s ease-in-out infinite; }
+.bp-tail { animation: bp-wag .62s ease-in-out infinite alternate; }
+.bp-eyes.bp-blink { animation: bp-blink 4.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+.bp-mood-bouncy .bp-root { animation-duration: 2.3s; }
+.bp-mood-bouncy .bp-tail { animation-duration: .42s; }
+.bp-mood-gentle .bp-root { animation-duration: 4.2s; }
+.bp-mood-gentle .bp-tail { animation-duration: .9s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-root, .bp-tail, .bp-eyes { animation: none !important; }
+}
+
+/* ---------------- Pet list (반려동물 리스트) ---------------- */
+.pet-row { display:flex; align-items:center; gap:14px; }
+.pet-row-char {
+  width:60px; height:60px; flex:none; border-radius:18px;
+  background: var(--surface-2); display:flex; align-items:center; justify-content:center;
+}
+.pet-row-info { min-width:0; flex:1; }
+.pet-row-name { font-weight:900; font-size:1.15rem; line-height:1.15; }
+.pet-row .chev { color: var(--on-surface-var); font-size:1.4rem; font-weight:700; }
+.pet-row-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.pets-add { width:100%; }
+
+.mini-chip {
+  display:inline-flex; align-items:center; padding:3px 9px;
+  border-radius: var(--r-pill); font-size:.72rem; font-weight:800;
+  background: var(--primary-container); color: var(--on-primary-container);
+}
+.mini-chip.soft { background: var(--surface-2); color: var(--on-surface-var); }

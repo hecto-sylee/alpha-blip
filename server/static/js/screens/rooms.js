@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, loading, staggerMotion } from "../ui.js";
 import { navigate } from "../router.js";
+import { petCharacterEl } from "../character.js";
 
 const MODE_LABEL = { walk_friend: "🐕 산책 친구", family: "👨‍👩‍👧 가족" };
 
@@ -154,7 +155,7 @@ function feedCard(rec, room) {
     { dataset: { rid: rec.id, roomId: room.room_id }, style: "cursor:pointer", onclick: () => navigate(`/room/${room.room_id}`) },
     [
       el("div.tl-head", {}, [
-        el("div.av", { text: "🐾" }),
+        el("div.av.has-char", {}, [petCharacterEl((author && author.pet) || { id: rec.user_id, name: author ? author.nickname : "멤버" }, { size: 36 })]),
         el("div", {}, [
           el("div", { style: "font-weight:800", text: author ? author.nickname : "멤버" }),
           el("div.sub", {}, [el("span.chip.on", { text: room.name }), el("span", { text: `  ${fmtWhen(rec)}` })]),

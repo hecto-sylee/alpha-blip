@@ -19,6 +19,7 @@ from ..schemas import (
 from ..services import achievements as ach_svc
 from ..services import matching
 from ..utils.events import log_event
+from ..utils.jsonx import loads_list
 
 router = APIRouter(tags=["matches"])
 
@@ -46,7 +47,15 @@ def incoming(user: User = Depends(get_current_user), db: Session = Depends(get_d
             IncomingRequest(
                 id=r.id,
                 requester={"nickname": requester.nickname if requester else None},
-                pet={"name": pet.name, "breed": pet.breed} if pet else None,
+                pet={
+                    "id": pet.id,
+                    "name": pet.name,
+                    "breed": pet.breed,
+                    "size": pet.size,
+                    "personality_tags": loads_list(pet.personality_tags),
+                }
+                if pet
+                else None,
                 status=r.status,
                 expires_at=r.expires_at,
                 created_at=r.created_at,
@@ -125,7 +134,15 @@ def get_session(session_id: str, user: User = Depends(get_current_user), db: Ses
         status=session.status,
         partner={
             "nickname": partner.nickname if partner else None,
-            "pet": {"name": pet.name, "breed": pet.breed} if pet else None,
+            "pet": {
+                "id": pet.id,
+                "name": pet.name,
+                "breed": pet.breed,
+                "size": pet.size,
+                "personality_tags": loads_list(pet.personality_tags),
+            }
+            if pet
+            else None,
         },
         started_at=session.started_at,
     )
