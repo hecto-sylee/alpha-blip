@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Headless smoke for FE1 — 산책 지도 · 근처 · 매칭 (SCR-10~14).
+"""Headless smoke for v2 W3 — 산책 매칭중(#/matching/:id) + 발자국 트래킹.
 
-흐름:
-  - B(보리엄마)를 API로 셋업: guest+pet+walk+근처 위치.
-  - A(초코아빠)를 API로 셋업 후 브라우저 세션에 주입(geolocation 주입+권한 grant).
-  - A: 홈에서 [산책 시작] 클릭 → 지도/내 위치(또는 fallback) 렌더 확인.
-  - A 화면의 nearby 폴링이 B 마커를 띄우는지 단언 → 마커 탭 → 바텀시트 노출.
-  - [같이 산책하기] → 요청 전송(SCR-13) → B가 API로 accept →
-    A 화면이 세션(SCR-14)으로 전환 → 동행 타이머 → [산책 종료].
-콘솔 에러 0(외부 리소스/WebGL/타일 잡음 제외), 각 단계 스크린샷 저장.
+v2 재설계로 홈(W1)·산책중(W2)이 분리됐고, 이 러너의 "매칭 부분"을 W3 화면 기준으로
+갱신한다. W1/W2가 아직 스텁인 워크트리에서도 W3(matching.js)를 단독 검증할 수 있도록,
+W1의 "같이 산책하기" 진입은 API로 match-request 를 만든 뒤 `#/matching/:id` 로 직접
+진입해 시뮬레이션한다(데모 목업은 matches.py 가 자동 수락).
+
+검증(13_W3_matching.md DoD):
+  (1) 데모 매칭 진입 → 본인(빨강)+상대(강아지 핀) **둘만** 표시, 주변 마커 없음, 콘솔 0.
+  (2) 폴링으로 발자국 마커(.w3-foot)가 누적(틱마다 증가).
+  (3) 자동수락 세션확정 → [매칭 성공] → `#/walk?match=...` 진입.
+  (4) 거절 경로 → 토스트 + `#/home` 복귀.
+각 단계 스크린샷 저장, 콘솔 에러 0(외부 타일/WebGL 잡음 제외).
 """
 from __future__ import annotations
 
@@ -19,10 +22,11 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE", "http://localhost:8000")
+BASE = os.environ.get("BASE", "http://localhost:9013")
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fe_shots")
 os.makedirs(SHOTS, exist_ok=True)
-LAT, LNG = 37.5665, 126.9780
+# 데모 원점(강남 테헤란로 큰길타워) — 거절 경로의 geolocation 주입에도 사용.
+LAT, LNG = 37.5009, 127.0398
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 
@@ -62,12 +66,26 @@ def main():
 
     # --- API 픽스처 ---
     a_uid, a_tok, a_pet = make_user("초코아빠", "초코", "푸들")
+    # 데모 셋업: A 전용 목업(망고) + 목업 active walk session (자동수락 대상)
+    demo = apicall("POST", "/demo/setup", token=a_tok, body={})
+    mock_ws = demo["mock_walk_session_id"]
+    demo_ctx = {
+        "lat": demo["location"]["latitude"],
+        "lng": demo["location"]["longitude"],
+        "label": demo["location"]["label"],
+        "mockLat": demo["mock_location"]["latitude"],
+        "mockLng": demo["mock_location"]["longitude"],
+        "mockSessionId": demo["mock_walk_session_id"],
+        "mockPet": demo["mock_pet"],
+        "roomId": demo["room_id"],
+        "roomJoinCode": demo["room_join_code"],
+    }
+    # 거절 경로용 실제 상대 B
     b_uid, b_tok, b_pet = make_user("보리엄마", "보리", "비숑")
-    # B를 화면 중앙 아래(남쪽)에 배치 → 상단 상태바/헤더와 겹치지 않게
     b_walk = apicall("POST", "/walks/start", token=b_tok,
                      body={"pet_id": b_pet, "latitude": LAT - 0.0006, "longitude": LNG - 0.0003})
     b_ws = b_walk["walk_session_id"]
-    print(f"{DIM}  fixture: A={a_uid[:8]} B={b_uid[:8]} B_walk={b_ws[:8]}{RESET}")
+    print(f"{DIM}  fixture: A={a_uid[:8]} mock_ws={mock_ws[:8]} B={b_uid[:8]} B_walk={b_ws[:8]}{RESET}")
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -85,80 +103,80 @@ def main():
                 if not any(k in str(e).lower() for k in IGNORE) else None)
 
         try:
-            # A 세션 주입
+            # A 세션 + 데모 컨텍스트 주입 (W1 home_map 이 store.demo 를 세팅하는 것을 대체)
             page.goto(BASE, wait_until="domcontentloaded")
             page.evaluate(
-                """([t,u,p]) => { localStorage.setItem('auth_token',t); localStorage.setItem('user_id',u); localStorage.setItem('pet_id',p); }""",
-                [a_tok, a_uid, a_pet],
+                """([t,u,p,demo]) => {
+                  localStorage.setItem('auth_token',t);
+                  localStorage.setItem('user_id',u);
+                  localStorage.setItem('pet_id',p);
+                  localStorage.setItem('blip_demo_context', JSON.stringify(demo));
+                }""",
+                [a_tok, a_uid, a_pet, demo_ctx],
             )
-            page.goto(BASE + "/#/home", wait_until="networkidle")
-            page.wait_for_selector("#start-walk")
-            ok(page, "A 홈 진입 (산책 시작 CTA 노출)", "f1_01_home")
 
-            # 산책 시작
-            page.click("#start-walk")
-            page.wait_for_function("location.hash.startsWith('#/walk')", timeout=8000)
-            page.wait_for_selector(".map-screen", timeout=8000)
-            # 지도(me-marker) 또는 fallback 중 하나는 떠야 함
-            page.wait_for_selector("#me-marker, #walk-fallback", timeout=8000, state="attached")
-            page.wait_for_selector("#walk-coord", timeout=8000)
-            fit = page.evaluate(
-                """() => {
-                  const r = document.querySelector('.map-screen').getBoundingClientRect();
-                  const doc = document.scrollingElement;
-                  return {
-                    top: r.top,
-                    bottom: r.bottom,
-                    height: r.height,
-                    viewport: window.innerHeight,
-                    scrollHeight: doc.scrollHeight,
-                    clientHeight: doc.clientHeight
-                  };
-                }"""
+            # === (1)(2)(3) 데모 매칭 경로 — 자동수락 ===
+            # W1: 타 강아지 [같이 산책하기] 에 해당 → API 로 목업에 요청(자동 accept).
+            req = apicall("POST", "/match-requests", token=a_tok, body={"receiver_walk_session_id": mock_ws})
+            req_id = req["match_request_id"]
+            page.goto(BASE + f"/#/matching/{req_id}", wait_until="networkidle")
+            page.wait_for_function("location.hash.startsWith('#/matching/')", timeout=8000)
+            page.wait_for_selector("#w3-me", timeout=8000)
+            # 자동수락 → 상대 마커 확보(세션 확정)
+            page.wait_for_selector("#w3-partner", timeout=8000)
+
+            # (1) 본인+상대 둘만, 주변 nearby 마커(.dog-marker) 없음
+            counts = page.evaluate(
+                """() => ({
+                  me: document.querySelectorAll('#w3-me').length,
+                  partner: document.querySelectorAll('#w3-partner').length,
+                  nearby: document.querySelectorAll('.dog-marker').length,
+                })"""
             )
-            assert fit["top"] >= -1 and fit["bottom"] <= fit["viewport"] + 1, f"지도 화면이 viewport를 벗어남: {fit}"
-            assert fit["scrollHeight"] <= fit["clientHeight"] + 1, f"산책 화면에 문서 스크롤이 생김: {fit}"
-            mode = "지도(WebGL)" if page.query_selector("#me-marker") else "목록 fallback"
-            ok(page, f"산책 시작 → SCR-11 지도 렌더 + 내 위치 + 한 화면 높이 ({mode})", "f1_02_walk")
+            assert counts["me"] == 1, f"본인 마커 개수 이상: {counts}"
+            assert counts["partner"] == 1, f"상대 마커 개수 이상: {counts}"
+            assert counts["nearby"] == 0, f"주변 마커가 존재함(매칭중엔 둘만): {counts}"
+            ok(page, f"데모 매칭 진입 → 본인+상대 둘만 표시(주변 마커 0) {counts}", "w3_01_only_two")
 
-            # nearby 폴링이 B 마커를 띄움
-            page.wait_for_selector(f'[data-ws="{b_ws}"]', timeout=15000)
-            assert "보리" in page.inner_text(f'[data-ws="{b_ws}"]'), "B 마커에 펫 이름이 없음"
-            ok(page, "nearby 폴링 → B(보리) 입체 칩 마커 노출", "f1_03_nearby")
+            # (2) 발자국 누적 — 폴링 틱마다 .w3-foot 증가
+            page.wait_for_selector(".w3-foot", timeout=8000)
+            c1 = page.evaluate("() => document.querySelectorAll('.w3-foot').length")
+            page.wait_for_timeout(4200)  # 폴링 3틱 이상 경과
+            c2 = page.evaluate("() => document.querySelectorAll('.w3-foot').length")
+            assert c2 > c1, f"발자국이 누적되지 않음: {c1} → {c2}"
+            ok(page, f"발자국 트래킹 누적: {c1} → {c2} 개", "w3_02_footprints")
 
-            # 마커 탭 → 미리보기 시트 (겹친 마커/상단바 간섭 없이 해당 마커의 핸들러 직접 실행)
-            page.eval_on_selector(f'[data-ws="{b_ws}"]', "e => e.click()")
-            page.wait_for_selector("#preview-sheet", timeout=5000)
-            page.wait_for_selector("#send-request")
-            ok(page, "마커 탭 → SCR-12 바텀시트(상대 프로필) 노출", "f1_04_preview")
+            # (3) 세션확정 → [매칭 성공] → #/walk?match=...
+            page.wait_for_selector("#w3-cta:not([disabled])", timeout=8000)
+            assert page.inner_text("#w3-cta").strip() == "매칭 성공", "CTA 라벨이 '매칭 성공'이 아님"
+            page.click("#w3-cta")
+            page.wait_for_function(
+                "location.hash.startsWith('#/walk') && location.hash.includes('match=')", timeout=8000
+            )
+            walk_hash = page.evaluate("location.hash")
+            assert "match=" in walk_hash and len(walk_hash.split("match=")[1]) > 0, f"match 세션 누락: {walk_hash}"
+            ok(page, f"매칭 성공 → 산책중 인계 ({walk_hash})", "w3_03_success_to_walk")
 
-            # 같이 산책하기 → 요청 대기
-            page.click("#send-request")
-            page.wait_for_function("location.hash.startsWith('#/request/')", timeout=8000)
-            page.wait_for_selector("#request-wait")
-            req_id = page.evaluate("location.hash.split('/request/')[1]")
-            ok(page, f"요청 전송 → SCR-13 대기 화면 (req={req_id[:8]})", "f1_05_request")
-
-            # B가 수락 (API)
-            sess = apicall("PATCH", f"/match-requests/{req_id}/accept", token=b_tok)
-            sid = sess["match_session_id"]
-
-            # A 폴링이 수락 감지 → 세션 화면
-            page.wait_for_function("location.hash.startsWith('#/session/')", timeout=8000)
-            page.wait_for_selector("#session-timer", timeout=5000)
-            assert "보리엄마" in page.inner_text(".session-hud"), "세션에 파트너 닉네임 없음"
-            # 동행 타이머가 0부터 시작(서버 UTC 시각 오해석으로 540:00 등 큰 값이면 실패)
-            tmm = int(page.inner_text("#session-timer").split(":")[0])
-            assert tmm < 5, f"동행 타이머 시작값 이상: {page.inner_text('#session-timer')}"
-            ok(page, f"B 수락 → SCR-14 매칭 세션 전환(파트너·동행 타이머 {page.inner_text('#session-timer')})", "f1_06_session")
-
-            # 산책 종료 → 기록 에디터(SCR-20)로 (spec: 종료 → SCR-20)
-            page.click("#end-session")
-            page.wait_for_function("location.hash.startsWith('#/record')", timeout=8000)
-            ok(page, "산책 종료 → 로그 저장 후 기록 에디터(SCR-20) 진입", "f1_07_end")
+            # === (4) 거절 경로 — 토스트 + #/home ===
+            # 데모 컨텍스트 제거(실제 상대 B 와 일반 매칭) 후 보류 요청 생성
+            page.evaluate("() => localStorage.removeItem('blip_demo_context')")
+            req2 = apicall("POST", "/match-requests", token=a_tok, body={"receiver_walk_session_id": b_ws})
+            rid2 = req2["match_request_id"]
+            page.goto(BASE + f"/#/matching/{rid2}", wait_until="networkidle")
+            page.wait_for_selector("#w3-me", timeout=8000)
+            # 보류 상태이므로 상대 마커는 아직 없음
+            assert page.query_selector("#w3-partner") is None, "보류 상태인데 상대 마커가 떴음"
+            # B 가 거절 → 폴링이 감지 → 토스트 + #/home
+            apicall("PATCH", f"/match-requests/{rid2}/reject", token=b_tok)
+            page.wait_for_function("location.hash.startsWith('#/home')", timeout=10000)
+            toasted = page.evaluate(
+                "() => !!Array.from(document.querySelectorAll('.toast')).find(t => /거절/.test(t.textContent))"
+            )
+            assert toasted, "거절 토스트가 보이지 않음"
+            ok(page, "거절 경로 → 토스트 + #/home 복귀", "w3_04_reject_home")
 
         except Exception as e:
-            page.screenshot(path=os.path.join(SHOTS, "f1_FAIL.png"))
+            page.screenshot(path=os.path.join(SHOTS, "w3_FAIL.png"))
             print(f"  {RED}❌ 실패: {e}{RESET}")
             print(f"  {DIM}hash={page.evaluate('location.hash')}{RESET}")
             browser.close()
@@ -172,7 +190,7 @@ def main():
             print(f"   - {e}")
         return 1
 
-    print(f"\n{GREEN}🎉 FE1 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
+    print(f"\n{GREEN}🎉 W3 매칭 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
     return 0
 
 

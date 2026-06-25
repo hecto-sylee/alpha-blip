@@ -954,3 +954,75 @@ textarea.input { resize: vertical; min-height: 84px; }
   box-shadow: 0 2px 0 var(--surface-shadow);
 }
 .center-modal-close:active { transform: translateY(2px); box-shadow: none; }
+
+/* === W3: matching === */
+/* 산책 매칭중 — 본인(빨강)+상대(강아지 핀) 둘만, 발자국 트래킹.
+   .map-screen / .walk-view / marker-pop / pulse 는 기존 자산 재사용. */
+.w3-map { position: absolute; inset: 0; background: linear-gradient(160deg,#dfe9f3,#cfe3d6); }
+
+/* 본인 빨강 마커 (홈/산책의 내 위치 도트와 동일 무드) */
+.w3-me {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--primary); border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(255,107,94,.30), var(--ambient);
+  pointer-events: none;
+}
+
+/* 상대 강아지 캐릭터 핀 — 화이트 입체 핀 + pop 등장 */
+.w3-pwrap { pointer-events: none; }
+.w3-partner {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 var(--depth) 0 var(--secondary-shadow), var(--ambient);
+  animation: marker-pop var(--dur) var(--spring) both;
+  pointer-events: none;
+}
+.w3-partner .bp-char { width: 38px; height: 38px; }
+
+/* 발자국 트레일 — 폴링 틱마다 직전 위치에 누적, 오래될수록 옅게 */
+.w3-foot {
+  color: var(--primary); pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(217,74,61,.35));
+  opacity: .9; transition: opacity var(--dur) var(--ease);
+}
+.w3-foot.partner { color: var(--secondary); filter: drop-shadow(0 1px 1px rgba(20,160,131,.35)); }
+.w3-foot .ic { width: 18px; height: 18px; }
+.w3-foot.fade-1 { opacity: .55; }
+.w3-foot.fade-2 { opacity: .32; }
+.w3-foot.fade-3 { opacity: .16; }
+
+/* 상단 상태 오버레이 */
+.w3-top {
+  position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 12px; right: 12px;
+  z-index: 6; padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+  border-radius: var(--r-lg); background: var(--surface);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+}
+.w3-top .dotlive {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: var(--secondary); box-shadow: 0 0 0 0 rgba(43,201,168,.5);
+  animation: pulse 1.8s infinite;
+}
+
+/* 하단 [매칭 성공] CTA 바 */
+.w3-bottom {
+  position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 16px);
+  z-index: 6; padding: 14px; border-radius: var(--r-xl);
+  background: var(--surface); box-shadow: 0 4px 0 var(--surface-shadow), var(--ambient-lg);
+}
+.w3-bottom .w3-hint {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  font-weight: 700; font-size: .9rem; color: var(--on-surface-var);
+}
+.w3-bottom .w3-hint .ic { font-size: 1.1rem; }
+
+/* 폴백(WebGL 불가): 경계 박스 내 비율 절대배치 */
+.w3-fallback {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #e7f0ff, #d3e6da 70%);
+}
+.w3-fallback .w3-me,
+.w3-fallback .w3-foot,
+.w3-fallback .w3-pwrap,
+.w3-fallback .w3-partner { position: absolute; transform: translate(-50%, -50%); }
