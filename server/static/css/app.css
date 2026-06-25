@@ -924,3 +924,33 @@ textarea.input { resize: vertical; min-height: 84px; }
   background: var(--primary-container); color: var(--on-primary-container);
 }
 .mini-chip.soft { background: var(--surface-2); color: var(--on-surface-var); }
+
+/* === W0: tabs/center-modal === */
+/* 화면 가운데 카드 팝업 (ui.js centerModal). bottomSheet 패턴을 중앙 정렬로 재사용. */
+.center-modal {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(20,16,30,.34);
+  opacity: 0; transition: opacity var(--dur) var(--ease);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.center-modal.open { opacity: 1; }
+.center-modal-card {
+  position: relative;
+  width: 100%; max-width: 340px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: 0 4px 0 var(--surface-shadow), var(--ambient-lg);
+  padding: 24px 20px;
+  opacity: 0;            /* springMotion 이 등장 시 1로 올린다 */
+  will-change: transform, opacity;
+}
+.center-modal-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--on-surface-var);
+  border: none; border-radius: var(--r-pill); cursor: pointer;
+  box-shadow: 0 2px 0 var(--surface-shadow);
+}
+.center-modal-close:active { transform: translateY(2px); box-shadow: none; }

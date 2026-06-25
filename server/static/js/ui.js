@@ -195,6 +195,32 @@ async function springSheet(sheet) {
   return motion.sheetUp(sheet);
 }
 
+// ---------------- Center modal ----------------
+// 화면 가운데 카드 팝업. buildContent(close) → DOM 반환(또는 null).
+// bottomSheet 패턴(scrim + spring) 재사용하되 중앙 정렬. W1 "가운데 팝업 프로필"이 사용.
+export function centerModal(buildContent) {
+  const root = document.getElementById("overlay-root");
+  const scrim = el("div.center-modal");
+  const card = el("div.center-modal-card");
+  const close = () => {
+    scrim.classList.remove("open");
+    setTimeout(() => scrim.remove(), reducedMotion() ? 10 : 320);
+  };
+  card.append(el("button.center-modal-close", {
+    type: "button", "aria-label": "닫기", onclick: close,
+  }, [icon("x")]));
+  const body = buildContent(close);
+  if (body) card.append(body);
+  scrim.append(card);
+  scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
+  root.append(scrim);
+  requestAnimationFrame(() => {
+    scrim.classList.add("open");
+    springMotion(card, { y: 8, scale: 0.92 });
+  });
+  return { close, card };
+}
+
 // ---------------- Celebration (matching success) ----------------
 export async function celebrate(pet) {
   if (reducedMotion()) return;

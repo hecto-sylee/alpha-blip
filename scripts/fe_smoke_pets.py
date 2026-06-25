@@ -2,8 +2,11 @@
 """FE smoke: 반려동물 리스트 + 펫별 고정 캐릭터.
 
 FE0(가입+첫 펫) 재사용 → API로 견종/크기/성격이 다른 펫 3마리 추가 →
-#/pets 진입해 .pet-row N개 + 각 행의 캐릭터 SVG 렌더 확인 + 홈 펫 카드 캐릭터 확인.
+#/pets 진입해 .pet-row N개 + 각 행의 캐릭터 SVG 렌더 확인 + /my 헤드 캐릭터 고정 일관성.
 콘솔 에러 0 단언.
+
+NOTE(W0): 구 home/walk/room 화면이 W0에서 스텁으로 대체되어, 홈 펫 카드 / 방 멤버 칩 /
+산책 마커 캐릭터 검증은 W1/W2/W3 러너로 이관했다.
 
 Usage: BASE=http://127.0.0.1:8011 python scripts/fe_smoke_pets.py
 """
@@ -63,55 +66,24 @@ def main() -> int:
             p = shot(page, "pets_10_list")
             print(f"  {GREEN}✅{RESET} /pets 4행 + 캐릭터 SVG 4개 렌더  names={names}  {DIM}{p}{RESET}")
 
+            # 일관성: 같은 펫(초코) SVG를 /pets 첫 행에서 캡처
+            pets_svg = page.eval_on_selector(".pet-row .bp-char svg", "e => e.innerHTML")
+
             # tap → 수정 화면 진입
             page.click(".pet-row >> nth=0")
             hash_is(page, "#/pet/")
             page.wait_for_selector("#pet-name")
             print(f"  {GREEN}✅{RESET} 펫 행 탭 → 수정 화면(/pet/:id) 진입")
 
-            # 홈 펫 카드의 캐릭터
-            page.evaluate("window.blip.navigate('/home')")
-            hash_is(page, "#/home")
-            page.wait_for_selector("#my-pet-card .bp-char svg")
-            p = shot(page, "pets_11_home_card")
-            print(f"  {GREEN}✅{RESET} 홈 펫 카드 캐릭터 렌더  {DIM}{p}{RESET}")
-
-            # 프로필(/my) 헤드 캐릭터
+            # 프로필(/my) 헤드 캐릭터 + 동일 펫 고정 일관성
+            # NOTE(W0): 구 home/walk/room 화면은 W0에서 스텁으로 대체됨 →
+            #           홈 펫 카드 / 방 멤버 칩 / 산책 마커 캐릭터 검증은 W1/W2/W3 러너로 이관.
             page.evaluate("window.blip.navigate('/my')")
             hash_is(page, "#/my")
             page.wait_for_selector(".my-head .bp-char svg")
-            print(f"  {GREEN}✅{RESET} 프로필 헤드 캐릭터 렌더")
-
-            # 일관성: 같은 펫(초코)이 /pets와 홈에서 동일 SVG로 렌더(=고정)
-            page.evaluate("window.blip.navigate('/pets')")
-            hash_is(page, "#/pets")
-            page.wait_for_selector(".pet-row .bp-char svg")
-            pets_svg = page.eval_on_selector(".pet-row .bp-char svg", "e => e.innerHTML")
-            page.evaluate("window.blip.navigate('/home')")
-            hash_is(page, "#/home")
-            page.wait_for_selector("#my-pet-card .bp-char svg")
-            home_svg = page.eval_on_selector("#my-pet-card .bp-char svg", "e => e.innerHTML")
-            assert pets_svg == home_svg, "same pet must render identical character (fixed)"
-            print(f"  {GREEN}✅{RESET} 동일 펫 → 동일 캐릭터(고정) 일관성 확인")
-
-            # 방: 생성 후 멤버 칩 캐릭터
-            rid = page.evaluate(
-                "async () => (await window.blip.api.post('/rooms', {name:'캐릭터방', mode:'walk_friend'})).room_id"
-            )
-            page.evaluate("(id) => window.blip.navigate('/room/' + id)", rid)
-            hash_is(page, "#/room/")
-            page.wait_for_selector(".member-chip .bp-char svg")
-            p = shot(page, "pets_12_room")
-            print(f"  {GREEN}✅{RESET} 방 멤버 칩 캐릭터 렌더  {DIM}{p}{RESET}")
-
-            # 데모 산책: 지도 마커(상대 강아지) 캐릭터
-            page.evaluate("window.blip.navigate('/home')")
-            hash_is(page, "#/home")
-            page.click("#demo-setup")
-            hash_is(page, "#/walk")
-            page.wait_for_selector(".dog-marker .bp-char svg", timeout=12000)
-            p = shot(page, "pets_13_walk")
-            print(f"  {GREEN}✅{RESET} 산책 지도 마커 캐릭터 렌더  {DIM}{p}{RESET}")
+            my_svg = page.eval_on_selector(".my-head .bp-char svg", "e => e.innerHTML")
+            assert pets_svg == my_svg, "same pet must render identical character (fixed)"
+            print(f"  {GREEN}✅{RESET} 프로필 헤드 캐릭터 렌더 · 동일 펫 → 동일 캐릭터(고정) 일관성 확인")
 
         except Exception as e:
             shot(page, "pets_FAIL")

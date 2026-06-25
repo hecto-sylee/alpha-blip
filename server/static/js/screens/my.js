@@ -9,12 +9,11 @@ import { petCharacterEl } from "../character.js";
 export async function myScreen() {
   setTab("my");
   loading();
-  let me = null, records = [], ach = null;
+  let me = null, records = [];
   try {
     me = await api.get("/auth/me");
     records = (await api.get("/records")).records || [];
   } catch (e) { toast(e.message || "불러오기 실패", "err"); }
-  try { ach = await api.get("/achievements"); } catch (_) {}
 
   const pet = me?.pets?.[0];
   const diary = records.filter((r) => r.visibility === "diary");
@@ -39,15 +38,11 @@ export async function myScreen() {
         statCard(String((me?.pets || []).length), "반려동물"),
       ]),
 
-      achievementsCard(ach),
-
       el("div.card", {}, [
         pet
           ? linkRow("dog", "반려동물 관리", () => navigate("/pets"))
           : linkRow("plus", "반려동물 등록", () => navigate("/onboard-pet")),
-        linkRow("award", "업적", () => navigate("/achievements")),
         linkRow("lock", "개인정보 보호 설정", () => navigate("/settings")),
-        linkRow("users", "내 방", () => navigate("/rooms")),
       ]),
 
       el("button.btn.danger", { id: "logout", text: "로그아웃", onclick: doLogout }),
@@ -57,32 +52,6 @@ export async function myScreen() {
 
 function statCard(v, k) { return el("div.stat", {}, [el("div.v", { text: v }), el("div.k", { text: k })]); }
 
-function achievementsCard(ach) {
-  const summary = ach?.summary;
-  const items = ach?.achievements || [];
-  const unlocked = items.filter((a) => a.unlocked);
-  // 가장 최근에 달성한 뱃지 우선, 없으면 다음 목표(진행도 높은 잠금 뱃지) 미리보기
-  const preview = unlocked.length
-    ? unlocked.slice(-6).reverse()
-    : items
-        .filter((a) => !a.unlocked && a.value > 0)
-        .sort((a, b) => b.value / b.threshold - a.value / a.threshold)
-        .slice(0, 6);
-  const count = summary ? `${summary.unlocked_count}/${summary.total_count}` : "—";
-  const sub = unlocked.length ? `${count} 뱃지 달성` : "첫 산책으로 뱃지를 모아보세요";
-
-  return el("div.card.tappable.ach-card", { onclick: () => navigate("/achievements") }, [
-    el("div.ach-card-head", {}, [
-      el("span.ach-card-title", {}, [icon("award"), " 업적"]),
-      el("span.spacer"),
-      el("span.ach-card-count", { text: count }),
-    ]),
-    el("div.ach-card-sub", { text: sub }),
-    el("div.ach-card-strip", {}, preview.length
-      ? preview.map((a) => el("span.ach-card-emoji" + (a.unlocked ? "" : ".dim"), { text: a.emoji, title: a.name }))
-      : [el("span.ach-card-emoji.dim", {}, [icon("paw-print")])]),
-  ]);
-}
 function linkRow(ic, label, onclick) {
   return el("div.list-link", { onclick }, [icon(ic), el("span.grow.strong", { text: label }), el("span.chev", { text: "›" })]);
 }
