@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Headless smoke for FE1 — 산책 지도 · 근처 · 매칭 (SCR-10~14).
+"""Headless smoke for v2-W1 — 홈 idle 지도 (#/home).
 
-흐름:
-  - B(보리엄마)를 API로 셋업: guest+pet+walk+근처 위치.
-  - A(초코아빠)를 API로 셋업 후 브라우저 세션에 주입(geolocation 주입+권한 grant).
-  - A: 홈에서 [산책 시작] 클릭 → 지도/내 위치(또는 fallback) 렌더 확인.
-  - A 화면의 nearby 폴링이 B 마커를 띄우는지 단언 → 마커 탭 → 바텀시트 노출.
-  - [같이 산책하기] → 요청 전송(SCR-13) → B가 API로 accept →
-    A 화면이 세션(SCR-14)으로 전환 → 동행 타이머 → [산책 종료].
+v2 재설계로 산책/매칭은 W2(#/walk)·W3(#/matching)로 분리됐다. 이 러너는 **홈 idle 지도**의
+DoD(11_W1_home_map.md §7)만 검증한다. (산책중/매칭중 상세는 W2/W3 러너 소관 — 여기선 진입만 단언.)
+
+흐름(데모 컨텍스트):
+  - A(초코아빠)를 API로 셋업(guest+pet) 후 /demo/setup으로 목업 강아지(망고) 1마리 확보.
+  - 브라우저에 auth + blip_demo_context 주입 → #/home.
+  - (1) 지도 + 본인 빨간 마커(.me-marker.red)가 화면 중앙 렌더 + 콘솔 에러 0.
+  - (2) 주변 마커가 강아지 캐릭터 핀(.dog-pin)만 — 이름/거리 메타 칩 없음.
+  - (3) 타 강아지 탭 → centerModal → [같이 산책하기] → 본인 walk session 보장(POST /walks/start)
+        → POST /match-requests(2xx) → #/matching/:id 진입.
+  - (4) 본인 마커 탭 → [산책하기] → walk session 생성(POST /walks/start) → #/walk 진입.
 콘솔 에러 0(외부 리소스/WebGL/타일 잡음 제외), 각 단계 스크린샷 저장.
 """
 from __future__ import annotations
@@ -22,7 +26,6 @@ from playwright.sync_api import sync_playwright
 BASE = os.environ.get("BASE", "http://localhost:8000")
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fe_shots")
 os.makedirs(SHOTS, exist_ok=True)
-LAT, LNG = 37.5665, 126.9780
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 
@@ -53,6 +56,7 @@ def main():
     print(f"{DIM}BASE={BASE}{RESET}")
     errors = []
     steps = []
+    api_calls = []  # (method, path, status)
 
     def ok(page, msg, name):
         path = os.path.join(SHOTS, f"{name}.png")
@@ -60,14 +64,36 @@ def main():
         print(f"  {GREEN}✅{RESET} {msg}  {DIM}{path}{RESET}")
         steps.append(msg)
 
-    # --- API 픽스처 ---
+    def calls(method, path):
+        return [c for c in api_calls if c[0] == method and c[1] == path]
+
+    def settle_modal(page):
+        # 스크림(.center-modal)은 opacity 0→1 CSS 트랜지션(240ms), 카드(.center-modal-card)는
+        # springMotion이 opacity를 1로 올린다. 부모 opacity는 곱해지므로 둘 다 ~1이어야 보인다.
+        page.wait_for_function(
+            "() => { const s=document.querySelector('.center-modal');"
+            " const c=document.querySelector('.center-modal-card');"
+            " return s && c && parseFloat(getComputedStyle(s).opacity) >= 0.99"
+            " && parseFloat(getComputedStyle(c).opacity) >= 0.99; }",
+            timeout=3000,
+        )
+
+    # --- API 픽스처: A + 데모 목업(망고) ---
     a_uid, a_tok, a_pet = make_user("초코아빠", "초코", "푸들")
-    b_uid, b_tok, b_pet = make_user("보리엄마", "보리", "비숑")
-    # B를 화면 중앙 아래(남쪽)에 배치 → 상단 상태바/헤더와 겹치지 않게
-    b_walk = apicall("POST", "/walks/start", token=b_tok,
-                     body={"pet_id": b_pet, "latitude": LAT - 0.0006, "longitude": LNG - 0.0003})
-    b_ws = b_walk["walk_session_id"]
-    print(f"{DIM}  fixture: A={a_uid[:8]} B={b_uid[:8]} B_walk={b_ws[:8]}{RESET}")
+    demo = apicall("POST", "/demo/setup", token=a_tok, body={})
+    mock_ws = demo["mock_walk_session_id"]
+    demo_ctx = {
+        "lat": demo["location"]["latitude"],
+        "lng": demo["location"]["longitude"],
+        "label": demo["location"]["label"],
+        "mockLat": demo["mock_location"]["latitude"],
+        "mockLng": demo["mock_location"]["longitude"],
+        "mockSessionId": demo["mock_walk_session_id"],
+        "mockPet": demo["mock_pet"],
+        "roomId": demo["room_id"],
+        "roomJoinCode": demo["room_join_code"],
+    }
+    print(f"{DIM}  fixture: A={a_uid[:8]} mock_ws={mock_ws[:8]} @ {demo_ctx['lat']},{demo_ctx['lng']}{RESET}")
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
@@ -76,7 +102,7 @@ def main():
         )
         ctx = browser.new_context(
             viewport={"width": 414, "height": 896}, locale="ko-KR",
-            geolocation={"latitude": LAT, "longitude": LNG}, permissions=["geolocation"],
+            geolocation={"latitude": demo_ctx["lat"], "longitude": demo_ctx["lng"]}, permissions=["geolocation"],
         )
         page = ctx.new_page()
         page.on("console", lambda m: errors.append(f"{m.type}: {m.text}")
@@ -84,83 +110,116 @@ def main():
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}")
                 if not any(k in str(e).lower() for k in IGNORE) else None)
 
+        def on_resp(r):
+            try:
+                if "/api/" in r.url and r.request.method in ("POST", "PATCH", "DELETE"):
+                    api_calls.append((r.request.method, r.url.split("/api", 1)[1].split("?")[0], r.status))
+            except Exception:
+                pass
+        page.on("response", on_resp)
+
         try:
-            # A 세션 주입
+            # A 세션 + 데모 컨텍스트 주입
             page.goto(BASE, wait_until="domcontentloaded")
             page.evaluate(
-                """([t,u,p]) => { localStorage.setItem('auth_token',t); localStorage.setItem('user_id',u); localStorage.setItem('pet_id',p); }""",
-                [a_tok, a_uid, a_pet],
+                """([t,u,p,demo]) => {
+                  localStorage.setItem('auth_token',t);
+                  localStorage.setItem('user_id',u);
+                  localStorage.setItem('pet_id',p);
+                  localStorage.setItem('blip_demo_context', JSON.stringify(demo));
+                  localStorage.removeItem('active_walk_session_id');
+                  localStorage.removeItem('blip_walk_clips');
+                }""",
+                [a_tok, a_uid, a_pet, demo_ctx],
             )
-            page.goto(BASE + "/#/home", wait_until="networkidle")
-            page.wait_for_selector("#start-walk")
-            ok(page, "A 홈 진입 (산책 시작 CTA 노출)", "f1_01_home")
 
-            # 산책 시작
-            page.click("#start-walk")
-            page.wait_for_function("location.hash.startsWith('#/walk')", timeout=8000)
+            # ---- (1) #/home: 지도 + 본인 빨간 마커(중앙) ----
+            page.goto(BASE + "/#/home", wait_until="networkidle")
+            page.wait_for_function("location.hash.startsWith('#/home')", timeout=8000)
             page.wait_for_selector(".map-screen", timeout=8000)
-            # 지도(me-marker) 또는 fallback 중 하나는 떠야 함
-            page.wait_for_selector("#me-marker, #walk-fallback", timeout=8000, state="attached")
-            page.wait_for_selector("#walk-coord", timeout=8000)
-            fit = page.evaluate(
+            page.wait_for_selector("#me-marker, #walk-fallback", timeout=10000, state="attached")
+            if not page.query_selector("#me-marker"):
+                raise AssertionError("WebGL 지도/본인 마커가 렌더되지 않음(fallback 모드) — 빨강 중앙 마커 단언 불가")
+            # 빨강 변형 + 화면 중앙
+            cls = page.get_attribute("#me-marker", "class") or ""
+            assert "red" in cls.split(), f"본인 마커가 빨강 변형(.red)이 아님: class={cls!r}"
+            geom = page.evaluate(
                 """() => {
-                  const r = document.querySelector('.map-screen').getBoundingClientRect();
-                  const doc = document.scrollingElement;
-                  return {
-                    top: r.top,
-                    bottom: r.bottom,
-                    height: r.height,
-                    viewport: window.innerHeight,
-                    scrollHeight: doc.scrollHeight,
-                    clientHeight: doc.clientHeight
-                  };
+                  const m = document.querySelector('#me-marker').getBoundingClientRect();
+                  const s = document.querySelector('.map-screen').getBoundingClientRect();
+                  return { mcx:m.x+m.width/2, mcy:m.y+m.height/2,
+                           scx:s.x+s.width/2, scy:s.y+s.height/2,
+                           sw:s.width, sh:s.height,
+                           top:s.top, bottom:s.bottom, vp:window.innerHeight,
+                           docScroll: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight };
                 }"""
             )
-            assert fit["top"] >= -1 and fit["bottom"] <= fit["viewport"] + 1, f"지도 화면이 viewport를 벗어남: {fit}"
-            assert fit["scrollHeight"] <= fit["clientHeight"] + 1, f"산책 화면에 문서 스크롤이 생김: {fit}"
-            mode = "지도(WebGL)" if page.query_selector("#me-marker") else "목록 fallback"
-            ok(page, f"산책 시작 → SCR-11 지도 렌더 + 내 위치 + 한 화면 높이 ({mode})", "f1_02_walk")
+            dx, dy = abs(geom["mcx"] - geom["scx"]), abs(geom["mcy"] - geom["scy"])
+            assert dx < 70 and dy < 90, f"본인 마커가 지도 중앙이 아님: dx={dx:.0f} dy={dy:.0f}"
+            assert geom["top"] >= -1 and geom["bottom"] <= geom["vp"] + 1, f"지도가 viewport 밖: {geom}"
+            assert geom["docScroll"] <= 1, f"문서 스크롤이 생김: {geom['docScroll']}"
+            ok(page, f"#/home 지도 + 본인 빨강 마커 중앙 렌더 (dx={dx:.0f},dy={dy:.0f}, 한 화면)", "home_01_map_red_center")
 
-            # nearby 폴링이 B 마커를 띄움
-            page.wait_for_selector(f'[data-ws="{b_ws}"]', timeout=15000)
-            assert "보리" in page.inner_text(f'[data-ws="{b_ws}"]'), "B 마커에 펫 이름이 없음"
-            ok(page, "nearby 폴링 → B(보리) 입체 칩 마커 노출", "f1_03_nearby")
+            # ---- (2) 주변 마커 = 강아지 캐릭터 핀만(메타 칩 없음) ----
+            page.wait_for_selector(f'.dog-pin[data-ws="{mock_ws}"]', timeout=12000)
+            audit = page.evaluate(
+                """(ws) => {
+                  const pin = document.querySelector(`.dog-pin[data-ws="${ws}"]`);
+                  const anyMeta = document.querySelectorAll('.dog-pin .meta, .dog-pin .nm, .dog-pin .ds').length;
+                  // 보이는 텍스트만 측정: 캐릭터 SVG(접근성 <title> 포함)를 제거한 뒤 남는 텍스트.
+                  const clone = pin.cloneNode(true);
+                  clone.querySelectorAll('svg').forEach((s) => s.remove());
+                  return {
+                    pins: document.querySelectorAll('.dog-pin').length,
+                    hasChar: !!pin.querySelector('svg'),
+                    visibleText: clone.textContent.trim(),
+                    anyMeta,
+                  };
+                }""",
+                mock_ws,
+            )
+            assert audit["hasChar"], "강아지 핀에 캐릭터(svg)가 없음"
+            assert audit["anyMeta"] == 0, f"강아지 핀에 이름/거리 메타 칩이 남아 있음({audit['anyMeta']}개)"
+            assert audit["visibleText"] == "", f"강아지 핀에 보이는 텍스트(이름/거리)가 노출됨: {audit['visibleText']!r}"
+            ok(page, f"주변 마커 = 강아지 캐릭터 핀만 ({audit['pins']}개, 메타 0)", "home_02_dog_pins")
 
-            # 마커 탭 → 미리보기 시트 (겹친 마커/상단바 간섭 없이 해당 마커의 핸들러 직접 실행)
-            page.eval_on_selector(f'[data-ws="{b_ws}"]', "e => e.click()")
-            page.wait_for_selector("#preview-sheet", timeout=5000)
-            page.wait_for_selector("#send-request")
-            ok(page, "마커 탭 → SCR-12 바텀시트(상대 프로필) 노출", "f1_04_preview")
+            # ---- (3) 타 강아지 탭 → centerModal → [같이 산책하기] → 매칭 ----
+            page.eval_on_selector(f'.dog-pin[data-ws="{mock_ws}"]', "e => e.click()")
+            page.wait_for_selector("#cm-profile", timeout=5000)
+            page.wait_for_selector("#peer-walk-together", timeout=5000)
+            settle_modal(page)
+            ok(page, "타 강아지 탭 → centerModal(프로필 + [같이 산책하기])", "home_03a_peer_modal")
+            page.eval_on_selector("#peer-walk-together", "e => e.click()")
+            page.wait_for_function("location.hash.startsWith('#/matching/')", timeout=8000)
+            ws_starts = calls("POST", "/walks/start")
+            mreqs = calls("POST", "/match-requests")
+            assert ws_starts and ws_starts[-1][2] in (200, 201), f"본인 walk session 보장(POST /walks/start) 누락/실패: {ws_starts}"
+            assert mreqs and mreqs[-1][2] in (200, 201), f"POST /match-requests 2xx 아님: {mreqs}"
+            match_id = page.evaluate("location.hash.split('/matching/')[1]")
+            ok(page, f"[같이 산책하기] → walks/start({ws_starts[-1][2]}) + match-requests({mreqs[-1][2]}) → #/matching/{match_id[:8]}", "home_03b_matching")
 
-            # 같이 산책하기 → 요청 대기
-            page.click("#send-request")
-            page.wait_for_function("location.hash.startsWith('#/request/')", timeout=8000)
-            page.wait_for_selector("#request-wait")
-            req_id = page.evaluate("location.hash.split('/request/')[1]")
-            ok(page, f"요청 전송 → SCR-13 대기 화면 (req={req_id[:8]})", "f1_05_request")
-
-            # B가 수락 (API)
-            sess = apicall("PATCH", f"/match-requests/{req_id}/accept", token=b_tok)
-            sid = sess["match_session_id"]
-
-            # A 폴링이 수락 감지 → 세션 화면
-            page.wait_for_function("location.hash.startsWith('#/session/')", timeout=8000)
-            page.wait_for_selector("#session-timer", timeout=5000)
-            assert "보리엄마" in page.inner_text(".session-hud"), "세션에 파트너 닉네임 없음"
-            # 동행 타이머가 0부터 시작(서버 UTC 시각 오해석으로 540:00 등 큰 값이면 실패)
-            tmm = int(page.inner_text("#session-timer").split(":")[0])
-            assert tmm < 5, f"동행 타이머 시작값 이상: {page.inner_text('#session-timer')}"
-            ok(page, f"B 수락 → SCR-14 매칭 세션 전환(파트너·동행 타이머 {page.inner_text('#session-timer')})", "f1_06_session")
-
-            # 산책 종료 → 기록 에디터(SCR-20)로 (spec: 종료 → SCR-20)
-            page.click("#end-session")
-            page.wait_for_function("location.hash.startsWith('#/record')", timeout=8000)
-            ok(page, "산책 종료 → 로그 저장 후 기록 에디터(SCR-20) 진입", "f1_07_end")
+            # ---- (4) 본인 마커 탭 → [산책하기] → 산책 세션 생성 → #/walk ----
+            page.evaluate("() => localStorage.removeItem('active_walk_session_id')")  # 새 산책 세션 생성 확인용
+            before = len(calls("POST", "/walks/start"))
+            page.goto(BASE + "/#/home", wait_until="networkidle")
+            page.wait_for_selector("#me-marker", timeout=10000)
+            page.eval_on_selector("#me-marker", "e => e.click()")
+            page.wait_for_selector("#mine-start-walk", timeout=5000)
+            settle_modal(page)
+            ok(page, "본인 마커 탭 → centerModal([산책하기])", "home_04a_mine_modal")
+            page.eval_on_selector("#mine-start-walk", "e => e.click()")
+            page.wait_for_function("location.hash.startsWith('#/walk')", timeout=8000)
+            after = calls("POST", "/walks/start")
+            assert len(after) > before and after[-1][2] in (200, 201), f"산책 세션 생성(POST /walks/start) 누락/실패: {after}"
+            walk_id = page.evaluate("() => localStorage.getItem('active_walk_session_id')")
+            assert walk_id, "산책 세션 id가 store에 저장되지 않음"
+            ok(page, f"[산책하기] → walks/start({after[-1][2]}) 세션 생성({walk_id[:8]}) → #/walk", "home_04b_walk")
 
         except Exception as e:
-            page.screenshot(path=os.path.join(SHOTS, "f1_FAIL.png"))
+            page.screenshot(path=os.path.join(SHOTS, "home_FAIL.png"))
             print(f"  {RED}❌ 실패: {e}{RESET}")
             print(f"  {DIM}hash={page.evaluate('location.hash')}{RESET}")
+            print(f"  {DIM}api_calls={api_calls}{RESET}")
             browser.close()
             return 1
 
@@ -172,7 +231,7 @@ def main():
             print(f"   - {e}")
         return 1
 
-    print(f"\n{GREEN}🎉 FE1 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
+    print(f"\n{GREEN}🎉 W1 홈 지도 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
     return 0
 
 
