@@ -44,6 +44,7 @@ def serialize_record(db: Session, rec: Record) -> RecordOut:
         user_id=rec.user_id,
         visibility=rec.visibility,
         room_id=rec.room_id,
+        match_session_id=rec.match_session_id,
         walked_at=rec.walked_at,
         duration_minutes=rec.duration_minutes,
         distance_meters=rec.distance_meters,

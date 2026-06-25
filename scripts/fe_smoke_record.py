@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Headless smoke for W4 — 가로 카메라 촬영 (docs/v2_redesign/14_W4_camera.md).
+"""Headless smoke for W5 — 기록 탭 재설계 (#/diary): 영상기록 + 매칭 상대기록 + 펫일기 + 캘린더/스와이프.
 
-촬영 부분(구 FE2 기록 에디터)을 v2 W4 카메라 플로우로 교체.
-DoD:
-  (1) #/camera?quest=테스트 진입 → 가로(landscape) 레이아웃 + 상단 퀘스트 텍스트 표시, 콘솔 0.
-  (2) #/camera (쿼리 없음) → 퀘스트 텍스트 미표시.
-  (3) 촬영 버튼 → POST /clips/upload 201 → store.walkClips 길이 증가 → #/walk 복귀.
-  (4) 퀘스트 진입 촬영 시 업로드 폼(multipart)에 mission_id 포함.
-콘솔 에러 0(외부 타일/WebGL 잡음 제외), 각 단계 스크린샷 저장.
-
-카메라: --use-fake-device-for-media-stream --use-fake-ui-for-media-stream + camera/microphone 권한 grant.
-가로 레이아웃 검증을 위해 landscape 뷰포트(896x414) 사용. #/walk 복귀가 콘솔 깨끗하도록 geolocation도 grant.
+흐름(데모 매칭 산책 1회를 API로 구성한 뒤 브라우저로 검증):
+  - 게스트+펫 → demo/setup(목 동행자) → 내 산책 시작 → 매칭요청(목이면 자동 수락) → match_session.
+  - 내 클립/상대 클립 업로드 → 각각 match_session 연결 record 생성(오늘).
+  - 어제: 혼자 산책 record(클립 1개, match 없음) — 상대영역 미표시/펫일기 빈상태 검증용.
+  - 오늘: 펫일기 1개 생성 — 카드/상세 진입 검증용.
+검증(DoD):
+  (1) #/diary 에 [기록] 칩 + 영상 섹션 + 펫일기 섹션 렌더, 방 버튼/공유옵션 부재, 콘솔 0.
+  (2) [기록] 칩 → 캘린더/공유 토글. 캘린더로 날짜 선택 → 해당 날짜 이동. 공유 비활성.
+  (3) 매칭 record: 내 영상 + 상대 영상 썸네일 둘 다(신규 API 200 + 상대 클립 stream 200). 혼자 산책은 상대 영역 미표시.
+  (4) 펫일기 0개 → "일기가 없어요."+작성 진입 / 1개 이상 → 카드 + 상세 진입.
+  (5) 좌우 스와이프 → 날짜 변경 시 영상 + 펫일기 동시 갱신.
+콘솔 에러 0(외부 타일/WebGL/더미 미디어 디코드 잡음 제외), 각 단계 스크린샷.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import json
 import os
 import sys
 import urllib.request
+from datetime import date, timedelta
 
 from playwright.sync_api import sync_playwright
 
@@ -26,10 +29,16 @@ SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fe_shots")
 os.makedirs(SHOTS, exist_ok=True)
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
+# 외부 타일/WebGL + 더미 webm(테스트 픽스처) 디코드 잡음은 무시. 앱 로직 에러만 집계.
 IGNORE = ("maplibre", "webgl", "tile.openstreetmap", "unpkg.com", "failed to load resource",
-          "err_", "net::", "favicon", "geolocation")
+          "err_", "net::", "favicon", "webm", "demuxer", "media resource", "no supported source",
+          "decode", "pipeline_error", "media element")
 
-MISSION_ID = "m-w4-smoke-1"  # 임의 미션 id — 업로드 폼 태깅 검증용 (BE는 free-form 허용)
+TODAY = date.today().isoformat()
+YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
+
+# 최소 webm 헤더 흉내(EBML magic) — stream 200 + <video> 요소 생성만 확인하면 충분.
+DUMMY_WEBM = b"\x1a\x45\xdf\xa3" + b"blip-w5-smoke-clip\x00" * 8
 
 
 def apicall(method, path, token=None, body=None):
@@ -43,112 +52,180 @@ def apicall(method, path, token=None, body=None):
         return json.loads(r.read().decode() or "{}")
 
 
+def upload_clip(token, order=0, content=DUMMY_WEBM):
+    boundary = "----blipW5Smoke"
+    body = b""
+    for name, value in (("order", str(order)), ("duration_ms", "2000")):
+        body += (f"--{boundary}\r\nContent-Disposition: form-data; "
+                 f'name="{name}"\r\n\r\n{value}\r\n').encode()
+    body += (f"--{boundary}\r\nContent-Disposition: form-data; "
+             f'name="file"; filename="clip.webm"\r\nContent-Type: video/webm\r\n\r\n').encode()
+    body += content + b"\r\n" + f"--{boundary}--\r\n".encode()
+    req = urllib.request.Request(BASE + "/api/clips/upload", data=body, method="POST")
+    req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+    req.add_header("Authorization", "Bearer " + token)
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read().decode())
+
+
+def setup_matching_walk():
+    """오늘=매칭 산책(내/상대 클립), 어제=혼자 산책, 오늘 펫일기 1개를 API로 구성."""
+    u = apicall("POST", "/auth/guest", body={"nickname": "기록이"})
+    tok = u["auth_token"]
+    p = apicall("POST", "/pets", token=tok,
+                body={"name": "콩", "breed": "말티즈", "size": "small", "personality_tags": ["온순함"]})
+    pet_id = p["pet_id"]
+
+    demo = apicall("POST", "/demo/setup", token=tok, body={})
+    mock_walk = demo["mock_walk_session_id"]
+    mock_token = f"demo-mock:{u['user_id']}"
+
+    apicall("POST", "/walks/start", token=tok,
+            body={"pet_id": pet_id, "latitude": demo["location"]["latitude"],
+                  "longitude": demo["location"]["longitude"]})
+
+    req = apicall("POST", "/match-requests", token=tok,
+                  body={"receiver_walk_session_id": mock_walk})
+    info = apicall("GET", f"/match-requests/{req['match_request_id']}", token=tok)
+    session_id = info["match_session_id"]
+    assert session_id, f"match_session 미생성: {info}"
+
+    clip_mine = upload_clip(tok, order=0)["clip_id"]
+    apicall("POST", "/records", token=tok,
+            body={"visibility": "diary", "walked_at": TODAY, "clip_ids": [clip_mine],
+                  "match_session_id": session_id})
+
+    clip_partner = upload_clip(mock_token, order=0)["clip_id"]
+    apicall("POST", "/records", token=mock_token,
+            body={"visibility": "diary", "walked_at": TODAY, "clip_ids": [clip_partner],
+                  "match_session_id": session_id})
+
+    # 어제: 혼자 산책 (match 없음)
+    clip_solo = upload_clip(tok, order=0)["clip_id"]
+    apicall("POST", "/records", token=tok,
+            body={"visibility": "diary", "walked_at": YESTERDAY, "clip_ids": [clip_solo]})
+
+    # 오늘: 펫일기 1개
+    apicall("POST", "/pet-diary", token=tok,
+            body={"pet_id": pet_id, "diary_date": TODAY, "mood": "happy",
+                  "activity_tags": ["move:walk", "people:friend"], "text": "매칭 산책 즐거웠다 🐾"})
+
+    return u, pet_id, session_id, clip_partner
+
+
 def main():
-    print(f"{DIM}BASE={BASE}{RESET}")
+    print(f"{DIM}BASE={BASE}  today={TODAY} yesterday={YESTERDAY}{RESET}")
     errors = []
-    uploads = []        # (status, url)
+    match_api = []   # (status, url) for /match-sessions/{id}/records
+    streams = []     # (status, url) for /api/clips/{id}/stream
+
+    u, pet_id, session_id, clip_partner = setup_matching_walk()
+    print(f"{DIM}  fixture: user={u['user_id'][:8]} session={session_id[:8]} partnerClip={clip_partner[:8]}{RESET}")
 
     def ok(page, msg, name):
         path = os.path.join(SHOTS, f"{name}.png")
         page.screenshot(path=path)
         print(f"  {GREEN}✅{RESET} {msg}  {DIM}{path}{RESET}")
 
-    u = apicall("POST", "/auth/guest", body={"nickname": "촬영이"})
-    p = apicall("POST", "/pets", token=u["auth_token"],
-                body={"name": "콩", "breed": "말티즈", "size": "small", "personality_tags": ["온순함"]})
-    print(f"{DIM}  fixture: user={u['user_id'][:8]} pet={p['pet_id'][:8]}{RESET}")
+    def swipe(page, dx):
+        box = page.eval_on_selector("#record-tab", "el => { const r=el.getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height}; }")
+        cy = box["y"] + box["h"] * 0.5
+        x0 = box["x"] + box["w"] * 0.5
+        page.mouse.move(x0, cy)
+        page.mouse.down()
+        page.mouse.move(x0 + dx, cy, steps=10)
+        page.mouse.up()
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--use-fake-device-for-media-stream",
-                  "--use-fake-ui-for-media-stream", "--use-gl=angle",
-                  "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+            args=["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
         )
-        # 가로(landscape) 뷰포트 — 전체화면 카메라가 실제 가로 프레임이 되도록.
-        ctx = browser.new_context(
-            viewport={"width": 896, "height": 414}, locale="ko-KR",
-            geolocation={"latitude": 37.5665, "longitude": 126.9780}, permissions=[],
-        )
-        ctx.grant_permissions(["camera", "microphone", "geolocation"])
-        # 업로드 폼 필드 캡처: FormData.append 를 감싸 [name, value(문자열만)] 기록 → DoD(4) 직접 단언.
-        ctx.add_init_script(
-            """
-            window.__clipFormFields = [];
-            const _ap = FormData.prototype.append;
-            FormData.prototype.append = function(name, value, ...rest) {
-              try { window.__clipFormFields.push([name, (typeof value === 'string') ? value : '[blob]']); } catch (e) {}
-              return _ap.call(this, name, value, ...rest);
-            };
-            """
-        )
+        ctx = browser.new_context(viewport={"width": 414, "height": 896}, locale="ko-KR")
         page = ctx.new_page()
         page.on("console", lambda m: errors.append(f"{m.type}: {m.text}")
                 if m.type == "error" and not any(k in m.text.lower() for k in IGNORE) else None)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}")
                 if not any(k in str(e).lower() for k in IGNORE) else None)
-        page.on("response", lambda r: uploads.append((r.status, r.url))
-                if "/api/clips/upload" in r.url else None)
+        page.on("response", lambda r: (
+            match_api.append((r.status, r.url)) if "/match-sessions/" in r.url and r.url.endswith("/records")
+            else streams.append((r.status, r.url)) if "/api/clips/" in r.url and "/stream" in r.url
+            else None))
 
         try:
             page.goto(BASE, wait_until="domcontentloaded")
             page.evaluate(
-                """([t,u,p]) => {
-                    localStorage.setItem('auth_token',t);
-                    localStorage.setItem('user_id',u);
-                    localStorage.setItem('pet_id',p);
-                    localStorage.removeItem('blip_walk_clips');  // 클립 누적 초기화
-                }""",
-                [u["auth_token"], u["user_id"], p["pet_id"]],
+                """([t,u,p]) => { localStorage.setItem('auth_token',t); localStorage.setItem('user_id',u); localStorage.setItem('pet_id',p); }""",
+                [u["auth_token"], u["user_id"], pet_id],
             )
 
-            # --- DoD (1): 퀘스트 진입 → 가로 레이아웃 + 상단 퀘스트 텍스트 ---
-            page.goto(BASE + f"/#/camera?quest=테스트&mission={MISSION_ID}", wait_until="domcontentloaded")
-            page.wait_for_selector("#camera-screen.landscape", timeout=8000)
-            page.wait_for_selector("#cam-video", timeout=8000)  # 카메라 스트림 활성
-            box = page.eval_on_selector("#camera-screen", "el => el.getBoundingClientRect()")
-            assert box["width"] > box["height"], f"가로 레이아웃이 아님: {box['width']}x{box['height']}"
-            assert page.query_selector("#cam-quest"), "상단 퀘스트 박스가 없음"
-            assert page.is_visible("#cam-quest"), "퀘스트 박스가 보이지 않음"
-            qtext = page.inner_text("#cam-quest")
-            assert "테스트" in qtext, f"상단 퀘스트 텍스트가 표시되지 않음: {qtext!r}"
-            ok(page, f"#/camera?quest= 진입 → 가로 {int(box['width'])}x{int(box['height'])} + 퀘스트 '{qtext.strip()}'", "w4_01_quest")
+            # ── (1) 렌더 + 방버튼/공유옵션 부재 ──────────────────────────
+            page.goto(BASE + f"/#/diary?date={TODAY}", wait_until="networkidle")
+            page.wait_for_selector("#record-pill", timeout=8000)
+            page.wait_for_selector("#record-videos", timeout=8000)
+            page.wait_for_selector("#record-diary", timeout=8000)
+            room_btns = [b for b in page.query_selector_all("#record-tab button")
+                         if "방" in (b.inner_text() or "")]
+            assert not room_btns, f"방 버튼이 존재함: {[b.inner_text() for b in room_btns]}"
+            assert page.query_selector("#record-tab >> text=방 공유") is None, "공유(방) 옵션이 존재함"
+            ok(page, "(1) #/diary: [기록] 칩 + 영상 섹션 + 펫일기 섹션 렌더 · 방 버튼/공유옵션 부재", "f5_01_render")
 
-            # --- DoD (3)+(4): 촬영 → upload 201 → walkClips 증가 → #/walk 복귀, 폼에 mission_id ---
-            before = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').length")
-            page.click("#cam-shoot")
-            page.wait_for_function("location.hash.startsWith('#/walk')", timeout=15000)
-            assert uploads, "clips/upload 응답이 관측되지 않음"
-            up_status = uploads[-1][0]
-            assert up_status == 201, f"clip 업로드 상태가 201이 아님: {up_status}"
-            after = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').length")
-            assert after == before + 1, f"store.walkClips 길이가 증가하지 않음: {before} → {after}"
-            last = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').slice(-1)[0]")
-            assert last and last.get("mission_id") == MISSION_ID, f"누적 클립 mission_id 불일치: {last}"
-            # DoD (4): 업로드 폼에 mission_id 필드 포함 단언 (FormData.append 캡처)
-            fields = page.evaluate("window.__clipFormFields || []")
-            names = [f[0] for f in fields]
-            assert "file" in names and "duration_ms" in names and "order" in names, f"업로드 폼 필수 필드 누락: {names}"
-            assert ["mission_id", MISSION_ID] in [list(f) for f in fields], f"업로드 폼에 mission_id가 없음: {fields}"
-            # 서버 라운드트립 — 업로드된 클립이 서버에 mission_id로 저장됐는지 확인(end-to-end).
-            clip_id = last["clip_id"]
-            rec = apicall("POST", "/records", token=u["auth_token"], body={"clip_ids": [clip_id]})
-            detail = apicall("GET", f"/records/{rec['record_id']}", token=u["auth_token"])
-            srv_mid = next((c.get("mission_id") for c in detail.get("clips", []) if c.get("id") == clip_id), None)
-            assert srv_mid == MISSION_ID, f"서버 저장 mission_id 불일치: {srv_mid}"
-            ok(page, f"촬영 → /clips/upload {up_status} → walkClips {before}→{after} → #/walk 복귀 (폼·서버 mission_id={srv_mid})", "w4_02_shoot")
+            # ── (3) 매칭: 내 영상 + 상대 영상 둘 다 (신규 API 200 + 상대 stream 200) ──
+            # 주: 캘린더/스와이프 날짜 이동은 URL을 바꾸지 않고 화면을 제자리 갱신(스펙).
+            #     따라서 "오늘"에서 먼저 스와이프 검증을 끝낸 뒤, 마지막에 캘린더를 검증한다.
+            page.wait_for_selector("#my-clips video", timeout=10000)
+            page.wait_for_selector("#partner-clips video", timeout=10000)
+            assert any(s == 200 for s, _ in match_api), f"match-records API 200 미관측: {match_api}"
+            assert any(s in (200, 206) and clip_partner in url for s, url in streams), \
+                f"상대 클립 stream 200 미관측: {streams}"
+            ok(page, "(3) 매칭 record: 내 영상 + 상대 영상 썸네일 둘 다 표시 (신규 API 200 · 상대 stream 200)", "f5_02_matching")
 
-            # --- DoD (2): 쿼리 없는 진입 → 퀘스트 텍스트 미표시 ---
-            page.goto(BASE + "/#/camera", wait_until="domcontentloaded")
-            page.wait_for_selector("#camera-screen.landscape", timeout=8000)
-            page.wait_for_selector("#cam-video", timeout=8000)
-            assert page.query_selector("#cam-quest") is None, "쿼리 없이 진입했는데 퀘스트 박스가 표시됨"
-            ok(page, "#/camera (쿼리 없음) → 퀘스트 텍스트 미표시", "w4_03_noquest")
+            # ── (5) 스와이프 + (3-혼자) + (4-빈상태): 오늘→어제 동시 갱신 ──
+            swipe(page, 120)  # 오른쪽으로 밀기 → 이전 날(어제)
+            page.wait_for_function("d => document.getElementById('record-body').dataset.date === d", arg=YESTERDAY, timeout=8000)
+            assert page.eval_on_selector("#record-videos", "el => el.dataset.date") == YESTERDAY, "영상 섹션이 어제로 안 바뀜"
+            assert page.eval_on_selector("#record-diary", "el => el.dataset.date") == YESTERDAY, "펫일기 섹션이 어제로 안 바뀜"
+            assert page.query_selector("#partner-clips") is None, "혼자 산책인데 상대 영역이 표시됨"
+            page.wait_for_selector("#my-clips video", timeout=8000)
+            assert page.query_selector(".record-diary-empty") and page.query_selector("#diary-write"), \
+                "어제 펫일기 빈 상태(작성 진입)가 없음"
+            ok(page, "(5)/(3-혼자)/(4-빈) 스와이프→어제: 영상+펫일기 동시 갱신 · 상대영역 미표시 · 펫일기 빈상태+작성진입", "f5_03_swipe_solo")
+
+            # ── (4) 펫일기 카드 + 상세 진입: 어제→오늘 스와이프 ──
+            swipe(page, -120)  # 왼쪽으로 밀기 → 다음 날(오늘)
+            page.wait_for_function("d => document.getElementById('record-body').dataset.date === d", arg=TODAY, timeout=8000)
+            page.wait_for_selector("#partner-clips video", timeout=10000)
+            page.wait_for_selector(".pet-diary-card", timeout=8000)
+            ok(page, "(4) 스와이프→오늘: 펫일기 카드 표시 (상대영역 복귀)", "f5_04_diary_card")
+            page.click(".pet-diary-card")
+            page.wait_for_function("location.hash.startsWith('#/pet-diary/')", timeout=8000)
+            page.wait_for_selector("#diary-detail", timeout=8000)
+            ok(page, "(4) 펫일기 카드 탭 → 상세 진입(#/pet-diary/:id)", "f5_05_diary_detail")
+
+            # ── (2) [기록] 칩 → 캘린더/공유 토글 → 날짜 점프 + 공유 비활성 ──
+            # 상세(#/pet-diary/:id)에서 진짜 네비게이션으로 기록 탭 복귀(해시가 달라 재진입됨).
+            page.goto(BASE + f"/#/diary?date={TODAY}", wait_until="networkidle")
+            page.wait_for_selector("#record-pill", timeout=8000)
+            page.click("#record-pill")
+            page.wait_for_selector("#record-toggle:not(.hidden)", timeout=5000)
+            share = page.query_selector('[data-toggle="share"]')
+            assert share and (share.get_attribute("disabled") is not None
+                              or share.get_attribute("aria-disabled") == "true"), "공유 토글이 비활성이 아님"
+            page.click('[data-toggle="calendar"]')
+            page.wait_for_selector(".record-cal", timeout=5000)
+            cell = page.query_selector(".record-cal-cell[data-date]:not(.is-selected):not(.is-empty)")
+            jump = cell.get_attribute("data-date")
+            cell.click()
+            page.wait_for_function("d => document.getElementById('record-body').dataset.date === d", arg=jump, timeout=8000)
+            assert page.inner_text("#record-date"), "날짜 라벨 비어있음"
+            ok(page, f"(2) [기록] 칩 → 캘린더/공유 토글 · 공유 비활성 · 캘린더로 {jump} 이동", "f5_06_calendar")
 
         except Exception as e:
-            page.screenshot(path=os.path.join(SHOTS, "w4_FAIL.png"))
+            page.screenshot(path=os.path.join(SHOTS, "f5_FAIL.png"))
             print(f"  {RED}❌ 실패: {e}{RESET}")
-            print(f"  {DIM}hash={page.evaluate('location.hash')} uploads={uploads}{RESET}")
+            print(f"  {DIM}hash={page.evaluate('location.hash')}{RESET}")
+            print(f"  {DIM}match_api={match_api}{RESET}")
+            print(f"  {DIM}streams={streams[-6:]}{RESET}")
             browser.close()
             return 1
 
@@ -160,7 +237,7 @@ def main():
             print(f"   - {e}")
         return 1
 
-    print(f"\n{GREEN}🎉 W4 카메라 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
+    print(f"\n{GREEN}🎉 W5 기록 탭 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
     return 0
 
 

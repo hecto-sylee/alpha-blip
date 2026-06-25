@@ -328,6 +328,7 @@ class RecordOut(BaseModel):
     user_id: str
     visibility: str
     room_id: str | None = None
+    match_session_id: str | None = None  # W5: 매칭 산책 여부 판단용(기록 탭 상대영상)
     walked_at: date | None = None
     duration_minutes: int | None = None
     distance_meters: int | None = None
@@ -462,3 +463,17 @@ class PetDiaryOut(BaseModel):
 
 class PetDiaryListRes(BaseModel):
     diaries: list[PetDiaryOut] = []
+
+
+# ---------------------------------------------------------------------------
+# Match session records (W5) — 매칭 양측 기록 영상 조회
+# ---------------------------------------------------------------------------
+class MatchRecordOut(BaseModel):
+    record_id: str
+    walked_at: date | None = None
+    clips: list[ClipOut] = []
+
+
+class MatchSessionRecordsRes(BaseModel):
+    mine: list[MatchRecordOut] = []
+    partner: list[MatchRecordOut] = []
