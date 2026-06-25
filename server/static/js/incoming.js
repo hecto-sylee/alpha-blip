@@ -2,8 +2,9 @@
 // 라우터의 stopAll() 영향을 받지 않도록 자체 setInterval로 동작한다.
 import { api } from "./api.js";
 import { store } from "./store.js";
-import { reducedMotion, toast } from "./ui.js";
+import { reducedMotion, toast, icon } from "./ui.js";
 import { navigate } from "./router.js";
+import { petCharacterEl } from "./character.js";
 
 const POLL_MS = 3000;
 const dismissed = new Set();
@@ -45,12 +46,13 @@ function show(req) {
   });
 
   const close = document.createElement("button");
-  close.className = "btn ghost"; close.id = "incoming-close"; close.textContent = "✕";
+  close.className = "btn ghost"; close.id = "incoming-close"; close.append(icon("x"));
   close.addEventListener("click", () => { dismissed.add(req.id); hide(); });
 
-  const av = document.createElement("div"); av.className = "av"; av.textContent = "🐶";
-  const txt = document.createElement("div"); txt.className = "txt";
   const nick = (req.requester && req.requester.nickname) || "누군가";
+  const av = document.createElement("div"); av.className = "av has-char";
+  av.append(petCharacterEl(req.pet && req.pet.name ? req.pet : { name: nick }, { size: 38 }));
+  const txt = document.createElement("div"); txt.className = "txt";
   const petName = (req.pet && req.pet.name) ? ` · ${req.pet.name}` : "";
   txt.innerHTML = `<div class="t">${nick}님의 같이 산책 요청${petName}</div><div class="d">수락하면 함께 산책을 시작해요</div>`;
 

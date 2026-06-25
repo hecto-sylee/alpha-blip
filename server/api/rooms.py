@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 
 from ..api.records import serialize_record
 from ..deps import get_current_user, get_db
-from ..models import DailyQuest, QuestTemplate, Record, Room, RoomMember, User, utcnow
+from ..models import DailyQuest, Pet, QuestTemplate, Record, Room, RoomMember, User, utcnow
 from ..schemas import RoomCardOut, RoomCreateReq, RoomCreateRes
 from ..services import quest as quest_svc
 from ..services import room as room_svc
 from ..utils.events import log_event
+from ..utils.jsonx import loads_list
 
 router = APIRouter(tags=["rooms"])
 
@@ -91,7 +92,25 @@ def room_detail(room_id: str, user: User = Depends(get_current_user), db: Sessio
     members = []
     for m in room_svc.active_members(db, room_id):
         u = db.get(User, m.user_id)
-        members.append({"user_id": m.user_id, "nickname": u.nickname if u else None})
+        p = (
+            db.query(Pet)
+            .filter(Pet.user_id == m.user_id)
+            .order_by(Pet.created_at.asc())
+            .first()
+        )
+        members.append({
+            "user_id": m.user_id,
+            "nickname": u.nickname if u else None,
+            "pet": {
+                "id": p.id,
+                "name": p.name,
+                "breed": p.breed,
+                "size": p.size,
+                "personality_tags": loads_list(p.personality_tags),
+            }
+            if p
+            else None,
+        })
 
     # today's room quest
     today = utcnow().date()

@@ -1,8 +1,9 @@
 // screens/my.js — SCR-30 마이페이지 · SCR-32 개인정보 보호 설정 (F-09)
 import { api } from "../api.js";
 import { store } from "../store.js";
-import { el, mount, toast, setTab, loading } from "../ui.js";
+import { el, mount, toast, setTab, loading, icon } from "../ui.js";
 import { navigate } from "../router.js";
+import { petCharacterEl } from "../character.js";
 
 // ---------------- SCR-30 마이페이지 ----------------
 export async function myScreen() {
@@ -24,7 +25,7 @@ export async function myScreen() {
       el("h1.h1", { text: "마이" }),
       el("div.card", {}, [
         el("div.my-head", {}, [
-          el("div.av", { text: "🙂" }),
+          pet ? el("div.av.has-char", {}, [petCharacterEl(pet, { size: 64 })]) : el("div.av", {}, [icon("user")]),
           el("div", {}, [
             el("div.nm", { text: me?.nickname || "게스트" }),
             el("div.sub", { text: pet ? `${pet.name} · ${pet.breed || "견종 미입력"}` : "반려동물 미등록" }),
@@ -42,11 +43,11 @@ export async function myScreen() {
 
       el("div.card", {}, [
         pet
-          ? linkRow("🐶", "반려동물 관리", () => navigate(`/pet/${pet.id}`))
-          : linkRow("➕", "반려동물 등록", () => navigate("/onboard-pet")),
-        linkRow("🏅", "업적", () => navigate("/achievements")),
-        linkRow("🔒", "개인정보 보호 설정", () => navigate("/settings")),
-        linkRow("👥", "내 방", () => navigate("/rooms")),
+          ? linkRow("dog", "반려동물 관리", () => navigate("/pets"))
+          : linkRow("plus", "반려동물 등록", () => navigate("/onboard-pet")),
+        linkRow("award", "업적", () => navigate("/achievements")),
+        linkRow("lock", "개인정보 보호 설정", () => navigate("/settings")),
+        linkRow("users", "내 방", () => navigate("/rooms")),
       ]),
 
       el("button.btn.danger", { id: "logout", text: "로그아웃", onclick: doLogout }),
@@ -72,18 +73,18 @@ function achievementsCard(ach) {
 
   return el("div.card.tappable.ach-card", { onclick: () => navigate("/achievements") }, [
     el("div.ach-card-head", {}, [
-      el("span.ach-card-title", { text: "🏅 업적" }),
+      el("span.ach-card-title", {}, [icon("award"), " 업적"]),
       el("span.spacer"),
       el("span.ach-card-count", { text: count }),
     ]),
     el("div.ach-card-sub", { text: sub }),
     el("div.ach-card-strip", {}, preview.length
       ? preview.map((a) => el("span.ach-card-emoji" + (a.unlocked ? "" : ".dim"), { text: a.emoji, title: a.name }))
-      : [el("span.ach-card-emoji.dim", { text: "🐾" })]),
+      : [el("span.ach-card-emoji.dim", {}, [icon("paw-print")])]),
   ]);
 }
 function linkRow(ic, label, onclick) {
-  return el("div.list-link", { onclick }, [el("span.ic", { text: ic }), el("span", { style: "flex:1;font-weight:700", text: label }), el("span.chev", { text: "›" })]);
+  return el("div.list-link", { onclick }, [icon(ic), el("span.grow.strong", { text: label }), el("span.chev", { text: "›" })]);
 }
 
 function doLogout() {
@@ -113,8 +114,8 @@ export async function settingsScreen() {
 
   // 기본 공개범위
   const visSeg = el("div.seg", { id: "default-vis" });
-  [["diary", "📔 일기"], ["room", "👥 방"]].forEach(([val, label]) => {
-    const o = el("div.opt" + (val === s.defaultVisibility ? ".sel" : ""), { text: label, dataset: { val } });
+  [["diary", "notebook", "일기"], ["room", "users", "방"]].forEach(([val, ic, label]) => {
+    const o = el("div.opt" + (val === s.defaultVisibility ? ".sel" : ""), { dataset: { val } }, [icon(ic), ` ${label}`]);
     o.addEventListener("click", () => {
       store.setSettings({ defaultVisibility: val });
       visSeg.querySelectorAll(".opt").forEach((n) => n.classList.remove("sel"));

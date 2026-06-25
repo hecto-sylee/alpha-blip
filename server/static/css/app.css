@@ -66,6 +66,7 @@
   /* 잔존 그림자(토스트/스위치 등 소형 요소용) */
   --shadow-1: 0 1px 2px rgba(34,26,23,.08), 0 2px 8px rgba(34,26,23,.06);
   --shadow-2: 0 6px 24px rgba(34,26,23,.12);
+  --shadow-pop: 0 10px 16px rgba(43,36,32,.18);  /* 축하/팝업 강조 drop-shadow */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -114,6 +115,8 @@ body {
   padding: 16px 16px calc(var(--tabbar-h) + 24px);
   position: relative;
 }
+/* 떠 있는 FAB가 있는 화면(다이어리)은 마지막 콘텐츠가 가려지지 않게 하단 여백 추가 */
+#view:has(.fab) { padding-bottom: calc(var(--tabbar-h) + 96px); }
 #view.walk-view {
   padding: 0 12px 12px;
   overflow: hidden;
@@ -128,14 +131,33 @@ body {
   to   { opacity: 1; transform: none; }
 }
 
+/* ---------------- Typography / layout utilities (single source) ---------------- */
 .h1 { font-size: 1.7rem; font-weight: 900; letter-spacing: 0; margin: 8px 0 4px; }
 .h2 { font-size: 1.2rem; font-weight: 800; letter-spacing: 0; margin: 0 0 8px; }
+.title { font-size: 1.25rem; font-weight: 900; letter-spacing: 0; }   /* 화면 제목 */
 .muted { color: var(--on-surface-var); }
 .sub { color: var(--on-surface-var); font-size: .92rem; }
+.strong { font-weight: 800; }                                        /* 본문 강조 굵기 */
 .center { text-align: center; }
+/* 이모지/일러스트 디스플레이 — 3단계로 통일 */
+.emoji-lg { font-size: 2rem; line-height: 1.1; }
+.emoji-xl { font-size: 3rem; line-height: 1.05; }
+.emoji-2xl { font-size: 3.4rem; line-height: 1; }
 .stack > * + * { margin-top: 12px; }
+.stack.gap-sm > * + * { margin-top: 8px; }
+.stack.gap-lg > * + * { margin-top: 16px; }
 .row { display: flex; gap: 10px; align-items: center; }
+.row.gap-sm { gap: 8px; }
+.row.gap-lg { gap: 16px; }
+.wrap { flex-wrap: wrap; }
 .spacer { flex: 1; }
+.grow { flex: 1; min-width: 0; }   /* 내용이 차는 flex 자식(말줄임 허용) */
+.hidden { display: none !important; }
+.clickable { cursor: pointer; }
+/* 인라인 SVG 아이콘(Lucide) — 색은 currentColor, 크기는 부모 font-size(1em) */
+.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none; }
+/* 전체화면 세로 중앙 정렬(상태/히어로 화면 공통) — 자식은 가로로 채움 */
+.screen-center { min-height: 68vh; display: flex; flex-direction: column; justify-content: center; }
 
 /* ---------------- Card — 외곽선 제거 + 소프트 입체 ---------------- */
 .card {
@@ -315,10 +337,12 @@ textarea.input { resize: vertical; min-height: 84px; }
 }
 .toast {
   pointer-events: auto;
+  display: flex; align-items: center; gap: 8px;
   background: var(--on-surface); color: #fff; padding: 12px 16px;
   border-radius: var(--r-md); box-shadow: var(--shadow-2); font-weight: 700; font-size: .92rem;
   animation: toast-in var(--dur) var(--spring) both;
 }
+.toast .toast-ic { font-size: 1.15rem; }
 .toast.err { background: var(--danger); animation: toast-shake 420ms var(--ease) both; }
 .toast.ok { background: var(--success); }
 .toast.out { animation: toast-out var(--dur) var(--ease) both; }
@@ -385,12 +409,14 @@ textarea.input { resize: vertical; min-height: 84px; }
   position: relative;
 }
 .home-hero::after {
-  content: "🐾";
+  content: "";
   position: absolute;
   right: 18px;
   top: 52px;
-  font-size: 5.2rem;
-  line-height: 1;
+  width: 88px;
+  height: 88px;
+  background: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232B2420' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='4' r='2'/%3E%3Ccircle cx='18' cy='8' r='2'/%3E%3Ccircle cx='20' cy='16' r='2'/%3E%3Cpath d='M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z'/%3E%3C/svg%3E");
   opacity: .18;
   transform: rotate(-14deg);
 }
@@ -471,15 +497,21 @@ textarea.input { resize: vertical; min-height: 84px; }
 }
 .map-fallback .radar {
   position: relative; width: 178px; height: 178px; margin: 0 auto 14px;
-  border-radius: 50%; border: 2px dashed rgba(0,0,0,.12);
+  border-radius: 50%; border: none;
+  background: rgba(255,255,255,.45);
+  box-shadow: inset 0 0 0 2px var(--surface-2), var(--ambient);
   display:flex; align-items:center; justify-content:center;
 }
 .map-fallback .radar .me { font-size: 2rem; }
 
-/* Floating top bar (walk status) — 챙키 화이트 카드 */
-.walk-top {
+/* Floating top overlays (walk status + quest) — 흐름 배치로 묶어 겹침 방지 */
+.walk-overlays-top {
   position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 12px; right: 12px;
-  z-index: 6; padding: 12px 14px; display:flex; align-items:center; gap:10px;
+  z-index: 6; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none; /* 자식이 개별적으로 pointer-events 켬 */
+}
+.walk-top {
+  padding: 12px 14px; display:flex; align-items:center; gap:10px;
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
@@ -488,14 +520,14 @@ textarea.input { resize: vertical; min-height: 84px; }
 .walk-top .dotlive { width:10px; height:10px; border-radius:50%; background:var(--success); box-shadow:0 0 0 0 rgba(88,204,2,.5); animation: pulse 1.8s infinite; }
 @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(88,204,2,.5)} 70%{box-shadow:0 0 0 12px rgba(88,204,2,0)} 100%{box-shadow:0 0 0 0 rgba(88,204,2,0)} }
 
-/* Quest mission banner */
+/* Quest mission banner — .walk-overlays-top 안에서 walk-top 아래로 흐름 */
 .quest-banner {
-  position: absolute; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 64px);
-  z-index: 6; padding: 12px 14px; display:flex; align-items:center; gap:10px; cursor:pointer;
+  padding: 12px 14px; display:flex; align-items:center; gap:10px; cursor:pointer;
   border-radius: var(--r-lg);
   background: var(--tertiary-container);
   color: var(--on-tertiary-container);
   box-shadow: 0 var(--press) 0 var(--tertiary-shadow), var(--ambient);
+  pointer-events: auto; /* 컨테이너가 none이므로 배너만 클릭 가능 */
 }
 .quest-banner .q-ic { font-size: 1.4rem; }
 
@@ -542,6 +574,8 @@ textarea.input { resize: vertical; min-height: 84px; }
   width:100%; max-width:var(--maxw); margin:0 auto; z-index:2;
   display:flex; flex-direction:column; background: radial-gradient(circle at 50% 30%, #fff3ef, #ffe2dd); }
 .session-hud .timer { font-size: 3rem; font-weight: 900; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.session-hud-body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; }
+.session-hud-foot { padding: 0 16px calc(env(safe-area-inset-bottom) + 24px); }
 
 /* ---------------- Quest (SCR-27) ---------------- */
 .quest-card {
@@ -554,6 +588,7 @@ textarea.input { resize: vertical; min-height: 84px; }
 .quest-card.sel { background: var(--primary-container); box-shadow: 0 3px 0 var(--primary-shadow), var(--ambient); }
 .quest-card .q-title { font-weight: 800; font-size: 1.1rem; }
 .quest-card .q-desc { color: var(--on-surface-var); font-size: .9rem; margin-top: 4px; }
+.quest-card .q-chips { margin-top: 10px; }
 
 .mission-row {
   display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius: var(--r-md);
@@ -638,6 +673,8 @@ textarea.input { resize: vertical; min-height: 84px; }
 .room-card .r-name { font-weight: 800; font-size: 1.15rem; }
 .room-card .r-meta { color: var(--on-surface-var); font-size: .85rem; margin-top: 2px; }
 .room-mode { display:flex; gap:8px; }
+.chip-row { display:flex; align-items:center; gap:8px; overflow-x:auto; padding:2px 0; }   /* 가로 스크롤 칩 줄 */
+.chip-row .chip { white-space:nowrap; flex:none; }
 .invite-chip {
   min-height: 40px;
   padding: 9px 13px;
@@ -762,6 +799,7 @@ textarea.input { resize: vertical; min-height: 84px; }
 .ach-card-count { font-weight:900; color: var(--primary); font-variant-numeric:tabular-nums; }
 .ach-card-sub { color: var(--on-surface-var); font-size:.84rem; font-weight:600; margin-top:2px; }
 .ach-card-strip { display:flex; gap:8px; margin-top:12px; }
+.ach-card-action { display:block; width:100%; margin-top:12px; }
 .ach-card-emoji { font-size:1.7rem; line-height:1; }
 .ach-card-emoji.dim { filter: grayscale(1); opacity:.4; }
 
@@ -829,3 +867,60 @@ textarea.input { resize: vertical; min-height: 84px; }
 .lb-divider { display:flex; align-items:center; justify-content:center; gap:6px; font-size:.72rem; font-weight:900; padding:6px; margin:2px 4px; border-radius: var(--r-pill); }
 .lb-divider.promote { color: var(--success-shadow); background: var(--secondary-container); }
 .lb-divider.demote { color: var(--danger); background: #FFE3E0; }
+
+/* ---------------- Pet character (마스코트) ---------------- */
+.bp-char { display:block; line-height:0; flex:none; }
+.bp-char svg { display:block; width:100%; height:100%; overflow:visible; }
+
+/* 아바타 박스 안에 들어가면 박스를 꽉 채운다 */
+.pet-avatar.has-char, .av.has-char { background: var(--surface-2); }
+.pet-avatar .bp-char, .av .bp-char, .face .bp-char { width:100% !important; height:100% !important; }
+
+/* 매칭 세션 HUD: 두 캐릭터 나란히 */
+.session-pets { display:flex; gap:14px; align-items:flex-end; justify-content:center; }
+.session-pet { width:92px; height:92px; }
+
+/* 지도 '나' 마커: 내 강아지 표시 */
+.me-marker.has-char {
+  width:44px; height:44px; border-radius:50%;
+  background: var(--primary-container); border:3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(255,107,94,.25), var(--ambient);
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+
+/* idle 모션 — 숨쉬기 · 꼬리 · 깜빡임 */
+@keyframes bp-breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2.4px); } }
+@keyframes bp-wag { from { transform: rotate(-10deg); } to { transform: rotate(16deg); } }
+@keyframes bp-blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(.12); } }
+
+.bp-root { animation: bp-breathe 3.2s ease-in-out infinite; }
+.bp-tail { animation: bp-wag .62s ease-in-out infinite alternate; }
+.bp-eyes.bp-blink { animation: bp-blink 4.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+.bp-mood-bouncy .bp-root { animation-duration: 2.3s; }
+.bp-mood-bouncy .bp-tail { animation-duration: .42s; }
+.bp-mood-gentle .bp-root { animation-duration: 4.2s; }
+.bp-mood-gentle .bp-tail { animation-duration: .9s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-root, .bp-tail, .bp-eyes { animation: none !important; }
+}
+
+/* ---------------- Pet list (반려동물 리스트) ---------------- */
+.pet-row { display:flex; align-items:center; gap:14px; }
+.pet-row-char {
+  width:60px; height:60px; flex:none; border-radius:18px;
+  background: var(--surface-2); display:flex; align-items:center; justify-content:center;
+}
+.pet-row-info { min-width:0; flex:1; }
+.pet-row-name { font-weight:900; font-size:1.15rem; line-height:1.15; }
+.pet-row .chev { color: var(--on-surface-var); font-size:1.4rem; font-weight:700; }
+.pet-row-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.pets-add { width:100%; }
+
+.mini-chip {
+  display:inline-flex; align-items:center; padding:3px 9px;
+  border-radius: var(--r-pill); font-size:.72rem; font-weight:800;
+  background: var(--primary-container); color: var(--on-primary-container);
+}
+.mini-chip.soft { background: var(--surface-2); color: var(--on-surface-var); }

@@ -11,6 +11,7 @@ from ..deps import get_current_user, get_db
 from ..models import Pet, User
 from ..schemas import GuestSignupReq, GuestSignupRes, MeRes, PetSummary
 from ..utils.events import log_event
+from ..utils.jsonx import loads_list
 
 router = APIRouter(tags=["auth"])
 
@@ -33,5 +34,15 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) ->
         id=user.id,
         nickname=user.nickname,
         profile_image_url=user.profile_image_url,
-        pets=[PetSummary(id=p.id, name=p.name, breed=p.breed, photo_url=p.photo_url) for p in pets],
+        pets=[
+            PetSummary(
+                id=p.id,
+                name=p.name,
+                breed=p.breed,
+                photo_url=p.photo_url,
+                size=p.size,
+                personality_tags=loads_list(p.personality_tags),
+            )
+            for p in pets
+        ],
     )

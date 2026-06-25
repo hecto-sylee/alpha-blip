@@ -23,6 +23,8 @@ class PetSummary(BaseModel):
     name: str
     breed: str | None = None
     photo_url: str | None = None
+    size: str | None = None
+    personality_tags: list[str] = []
 
 
 class MeRes(BaseModel):
@@ -86,6 +88,10 @@ class PetRes(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] = []
     caution_notes: str | None = None
+
+
+class PetListRes(BaseModel):
+    pets: list[PetRes] = []
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +158,7 @@ class DemoSetupRes(BaseModel):
     room_id: str
     room_join_code: str
     location: DemoLocation
+    mock_location: DemoLocation
 
 
 # ---------------------------------------------------------------------------
