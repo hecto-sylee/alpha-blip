@@ -1135,3 +1135,259 @@ textarea.input { resize: vertical; min-height: 84px; }
 .w3-fallback .w3-foot,
 .w3-fallback .w3-pwrap,
 .w3-fallback .w3-partner { position: absolute; transform: translate(-50%, -50%); }
+
+/* === W6: pet-diary === */
+/* 펫일기 작성/상세/표시카드. 디자인 시스템(입체 칩/세그/버튼) 위에 화면 전용 셰이프만 추가.
+   외곽선 금지 — 분리는 면색+하단 솔리드 그림자(입체)로만. 인라인 스타일 금지. */
+
+/* 작성/편집 폼 래퍼 */
+.diary-edit { padding-bottom: 8px; }
+.diary-form .field > label { color: var(--on-surface-var); }
+
+/* 기분 5단계 (한 개 선택) — 입체 세그/칩 무드 */
+.mood-row { display: flex; gap: 8px; }
+.mood-opt {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 4px; border: none; cursor: pointer;
+  border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast),
+    background var(--dur-fast), color var(--dur-fast);
+}
+.mood-opt:active { transform: translateY(var(--press)); box-shadow: none; }
+.mood-opt.sel {
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+  box-shadow: 0 var(--press) 0 var(--tertiary-shadow);
+  transform: translateY(-1px);
+}
+.mood-face { font-size: 1.7rem; line-height: 1; display: inline-flex; }
+.mood-face-lg { font-size: 2.6rem; }
+.mood-label { font-size: .76rem; font-weight: 800; }
+
+/* 활동 칩 (다중 선택) — 디자인 시스템 .tags .tag 에 아이콘 정렬만 추가 */
+.diary-chips .tag { display: inline-flex; align-items: center; gap: 6px; }
+.diary-chips .tag .ic { font-size: 1.05rem; }
+
+/* 상세 카드 */
+.diary-detail-card { display: flex; flex-direction: column; gap: 14px; }
+.diary-detail-head { align-items: center; gap: 14px; }
+.diary-detail-head .mood-face-lg { color: var(--primary); }
+.diary-detail-mood { font-size: 1.15rem; }
+.diary-detail-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.diary-act {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .82rem; font-weight: 800;
+  box-shadow: 0 var(--press) 0 var(--secondary-shadow);
+}
+.diary-detail-text { margin: 0; font-weight: 600; white-space: pre-wrap; }
+.diary-actions { margin-top: 2px; }
+.diary-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* 표시 카드 (이미지4) — 기분 이모지 + 활동 아이콘 줄 + 텍스트 1~2줄 */
+.pet-diary-card { display: flex; align-items: center; gap: 14px; }
+.pet-diary-mood {
+  flex: none; width: 52px; height: 52px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); font-size: 1.9rem;
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+}
+.pet-diary-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pet-diary-acts { row-gap: 6px; }
+.pet-diary-act {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .95rem;
+}
+.pet-diary-text {
+  margin: 0; color: var(--on-surface-var); font-weight: 600; font-size: .92rem;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pet-diary-chev { flex: none; color: var(--on-surface-var); font-size: 1.2rem; }
+
+/* === W4: camera === */
+/* 가로(landscape) 전체화면 카메라 촬영. 검정 배경 + cover 프리뷰 + 입체 촬영 버튼. */
+.camera-screen {
+  position: fixed; inset: 0; z-index: 55; /* 헤더(30)/스크림(40) 위, 토스트(60) 아래 */
+  background: #000; color: #fff; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.camera-screen .cam-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; background: #000;
+}
+.camera-screen .cam-preview {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.camera-screen .cam-stage.denied { background: #161210; }
+.camera-screen .cam-error {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  color: rgba(255,255,255,.9); font-weight: 700; padding: 24px; text-align: center;
+}
+.camera-screen .cam-error .ic { font-size: 2.4rem; color: var(--primary); }
+
+/* 상단 바: (좌) 퀘스트 한 줄 / (우) 닫기 X */
+.camera-screen .cam-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 0;
+}
+.camera-screen .cam-quest {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 70%;
+  padding: 9px 14px; border-radius: var(--r-pill);
+  background: rgba(0,0,0,.42); color: #fff; font-weight: 800; font-size: .95rem;
+  box-shadow: var(--ambient);
+}
+.camera-screen .cam-quest .ic { color: var(--tertiary); flex: none; }
+.camera-screen .cam-quest .cam-quest-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.camera-screen .cam-close {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.42); color: #fff; border: none; cursor: pointer;
+  font-size: 1.3rem; box-shadow: var(--ambient);
+  transition: transform var(--dur-fast) var(--spring);
+}
+.camera-screen .cam-close:active { transform: scale(.92); }
+
+/* 하단 바: 중앙 촬영 버튼(입체) */
+.camera-screen .cam-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 16px calc(env(safe-area-inset-bottom) + 22px);
+}
+.camera-screen .cam-shoot {
+  width: 76px; height: 76px; border-radius: 50%; border: none; cursor: pointer;
+  background: #fff; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 var(--depth-cta) 0 var(--surface-shadow), var(--ambient-lg);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.camera-screen .cam-shoot:active {
+  transform: translateY(calc(var(--depth-cta) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+}
+.camera-screen .cam-shoot:disabled { opacity: .45; box-shadow: none; cursor: default; }
+.camera-screen .cam-shoot .cam-shoot-dot {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--primary); transition: transform var(--dur-fast) var(--spring);
+}
+.camera-screen .cam-shoot.recording .cam-shoot-dot {
+  background: var(--danger); transform: scale(.55); border-radius: 14px;
+}
+
+/* 촬영 카운트다운(2.0 → 0.0) */
+.camera-screen .cam-count {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 3.4rem; font-weight: 900; color: #fff; z-index: 3;
+  font-variant-numeric: tabular-nums; text-shadow: 0 2px 12px rgba(0,0,0,.5);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-screen .cam-shoot,
+  .camera-screen .cam-shoot .cam-shoot-dot,
+  .camera-screen .cam-close { transition: none; }
+}
+
+/* === W5: record-tab === */
+/* 기록 탭(#/diary): 둥근 [기록] 칩 토글 + 영상 썸네일 + 펫일기 + 좌우 스와이프.
+   외곽선 금지 — 분리는 면색 + 하단 솔리드 그림자(입체)로만. 인라인 스타일 금지(동적 width 제외). */
+
+.record-tab { touch-action: pan-y; padding-bottom: 8px; }
+
+/* 상단 바 */
+.record-topbar { align-items: center; gap: 10px; }
+.record-pill-wrap { position: relative; }
+
+/* 둥근 [기록] 칩 — 눌리는 입체 pill */
+.record-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border: none; cursor: pointer;
+  border-radius: var(--r-pill);
+  background: var(--primary-container); color: var(--on-primary-container);
+  font-weight: 800; font-size: .92rem;
+  box-shadow: 0 var(--depth) 0 var(--primary-shadow), var(--ambient);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.record-pill:active {
+  transform: translateY(calc(var(--depth) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--primary-shadow), var(--ambient);
+}
+.record-pill-caret { transition: transform var(--dur-fast) var(--ease); }
+.record-pill[aria-expanded="true"] .record-pill-caret { transform: rotate(180deg); }
+
+.record-date { font-weight: 800; color: var(--on-surface-var); font-size: .95rem; }
+
+/* 토글 메뉴(캘린더/공유) — 칩 아래 떠오르는 입체 카드 */
+.record-toggle {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  min-width: 148px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: 0 3px 0 var(--surface-shadow), var(--ambient-lg);
+}
+.record-toggle.hidden { display: none; }
+.record-toggle-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border: none; cursor: pointer;
+  border-radius: var(--r-sm);
+  background: transparent; color: var(--on-surface);
+  font-weight: 700; font-size: .9rem; text-align: left;
+}
+.record-toggle-opt:active { background: var(--surface-2); }
+.record-toggle-opt.is-disabled { color: var(--on-surface-var); opacity: .5; cursor: not-allowed; }
+.record-toggle-opt.is-disabled:active { background: transparent; }
+
+/* 섹션 */
+.record-section { margin-top: 6px; }
+.record-loading { padding: 8px 2px; }
+.record-partner-title { margin-top: 16px; }
+.record-empty { padding: 16px 2px; }
+
+/* 영상 썸네일 스트립 — 가로 스크롤 */
+.record-thumb-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 0 6px; }
+.record-thumb {
+  flex: none; width: 112px; height: 150px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); overflow: hidden;
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 2px 0 var(--surface-shadow), var(--ambient);
+}
+.record-thumb-fallback { font-size: 1.8rem; }
+.record-thumb-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+
+/* 펫일기 빈 상태 */
+.record-diary-empty { padding: 28px 16px; }
+.record-diary-empty .btn { margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; }
+
+/* 캘린더 팝업(centerModal 내부) */
+.record-cal { display: flex; flex-direction: column; gap: 12px; }
+.record-cal-head { align-items: center; }
+.record-cal-title { font-weight: 800; font-size: 1rem; }
+.record-cal-nav {
+  width: 34px; height: 34px; padding: 0; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--on-surface);
+  box-shadow: 0 2px 0 var(--surface-shadow);
+}
+.record-cal-nav:active { transform: translateY(2px); box-shadow: none; }
+.record-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.record-cal-dow { text-align: center; font-size: .72rem; font-weight: 800; color: var(--on-surface-var); padding: 2px 0; }
+.record-cal-cell {
+  aspect-ratio: 1 / 1; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); font-size: .85rem; font-weight: 700;
+  background: var(--surface-2); color: var(--on-surface);
+}
+.record-cal-cell:active { transform: translateY(1px); }
+.record-cal-cell.is-empty { background: transparent; cursor: default; pointer-events: none; }
+.record-cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--secondary); }
+.record-cal-cell.is-selected { background: var(--primary); color: var(--on-primary); box-shadow: 0 2px 0 var(--primary-shadow); }
