@@ -9,7 +9,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
-from ..models import Clip, Record, User, utcnow
+from ..models import Clip, MatchSession, Record, User, utcnow
 from ..schemas import ClipUploadRes
 from ..services import room as room_svc
 from ..utils.events import log_event
@@ -61,9 +61,17 @@ def _can_view(db: Session, clip: Clip, user: User) -> bool:
     if clip.user_id == user.id:
         return True
     rec = db.get(Record, clip.record_id) if clip.record_id else None
-    if rec and rec.visibility == "room" and rec.room_id:
+    if rec is None:
+        return False
+    # 매칭 동행자: 상대의 *해당 match_session 에 연결된* 기록 클립만 열람 허용 (W5/O2).
+    # 일반 diary 클립은 여전히 owner 전용 — 범위를 매칭 record 클립에 한정한다.
+    if rec.match_session_id:
+        session = db.get(MatchSession, rec.match_session_id)
+        if session and user.id in (session.user_a_id, session.user_b_id):
+            return True
+    if rec.visibility == "room" and rec.room_id:
         return room_svc.is_member(db, rec.room_id, user.id)
-    return rec is not None and rec.user_id == user.id
+    return rec.user_id == user.id
 
 
 @router.get("/clips/{clip_id}/stream")

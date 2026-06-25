@@ -1029,3 +1029,100 @@ textarea.input { resize: vertical; min-height: 84px; }
   overflow: hidden;
 }
 .pet-diary-chev { flex: none; color: var(--on-surface-var); font-size: 1.2rem; }
+
+/* === W5: record-tab === */
+/* 기록 탭(#/diary): 둥근 [기록] 칩 토글 + 영상 썸네일 + 펫일기 + 좌우 스와이프.
+   외곽선 금지 — 분리는 면색 + 하단 솔리드 그림자(입체)로만. 인라인 스타일 금지(동적 width 제외). */
+
+.record-tab { touch-action: pan-y; padding-bottom: 8px; }
+
+/* 상단 바 */
+.record-topbar { align-items: center; gap: 10px; }
+.record-pill-wrap { position: relative; }
+
+/* 둥근 [기록] 칩 — 눌리는 입체 pill */
+.record-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border: none; cursor: pointer;
+  border-radius: var(--r-pill);
+  background: var(--primary-container); color: var(--on-primary-container);
+  font-weight: 800; font-size: .92rem;
+  box-shadow: 0 var(--depth) 0 var(--primary-shadow), var(--ambient);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.record-pill:active {
+  transform: translateY(calc(var(--depth) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--primary-shadow), var(--ambient);
+}
+.record-pill-caret { transition: transform var(--dur-fast) var(--ease); }
+.record-pill[aria-expanded="true"] .record-pill-caret { transform: rotate(180deg); }
+
+.record-date { font-weight: 800; color: var(--on-surface-var); font-size: .95rem; }
+
+/* 토글 메뉴(캘린더/공유) — 칩 아래 떠오르는 입체 카드 */
+.record-toggle {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  min-width: 148px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: 0 3px 0 var(--surface-shadow), var(--ambient-lg);
+}
+.record-toggle.hidden { display: none; }
+.record-toggle-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border: none; cursor: pointer;
+  border-radius: var(--r-sm);
+  background: transparent; color: var(--on-surface);
+  font-weight: 700; font-size: .9rem; text-align: left;
+}
+.record-toggle-opt:active { background: var(--surface-2); }
+.record-toggle-opt.is-disabled { color: var(--on-surface-var); opacity: .5; cursor: not-allowed; }
+.record-toggle-opt.is-disabled:active { background: transparent; }
+
+/* 섹션 */
+.record-section { margin-top: 6px; }
+.record-loading { padding: 8px 2px; }
+.record-partner-title { margin-top: 16px; }
+.record-empty { padding: 16px 2px; }
+
+/* 영상 썸네일 스트립 — 가로 스크롤 */
+.record-thumb-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 0 6px; }
+.record-thumb {
+  flex: none; width: 112px; height: 150px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); overflow: hidden;
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 2px 0 var(--surface-shadow), var(--ambient);
+}
+.record-thumb-fallback { font-size: 1.8rem; }
+.record-thumb-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+
+/* 펫일기 빈 상태 */
+.record-diary-empty { padding: 28px 16px; }
+.record-diary-empty .btn { margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; }
+
+/* 캘린더 팝업(centerModal 내부) */
+.record-cal { display: flex; flex-direction: column; gap: 12px; }
+.record-cal-head { align-items: center; }
+.record-cal-title { font-weight: 800; font-size: 1rem; }
+.record-cal-nav {
+  width: 34px; height: 34px; padding: 0; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--on-surface);
+  box-shadow: 0 2px 0 var(--surface-shadow);
+}
+.record-cal-nav:active { transform: translateY(2px); box-shadow: none; }
+.record-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.record-cal-dow { text-align: center; font-size: .72rem; font-weight: 800; color: var(--on-surface-var); padding: 2px 0; }
+.record-cal-cell {
+  aspect-ratio: 1 / 1; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); font-size: .85rem; font-weight: 700;
+  background: var(--surface-2); color: var(--on-surface);
+}
+.record-cal-cell:active { transform: translateY(1px); }
+.record-cal-cell.is-empty { background: transparent; cursor: default; pointer-events: none; }
+.record-cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--secondary); }
+.record-cal-cell.is-selected { background: var(--primary); color: var(--on-primary); box-shadow: 0 2px 0 var(--primary-shadow); }
