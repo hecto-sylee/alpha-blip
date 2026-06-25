@@ -7,6 +7,7 @@ const KEYS = {
   settings: "settings",
   pendingJoin: "blip_pending_join",
   demo: "blip_demo_context",
+  walkClips: "blip_walk_clips", // W4 브리지 (원래 W0 소유 — 미머지로 임시 추가, W0 머지 시 대체)
 };
 
 const DEFAULT_SETTINGS = {
@@ -54,6 +55,12 @@ export const store = {
   get pendingJoin() { return localStorage.getItem(KEYS.pendingJoin); },
   setPendingJoin(code) { if (code) localStorage.setItem(KEYS.pendingJoin, code); },
   clearPendingJoin() { localStorage.removeItem(KEYS.pendingJoin); },
+
+  // W4 브리지 (원래 W0 소유 — 미머지로 임시 추가). 산책 중 촬영 클립 누적/복원.
+  // clip: { clip_id, mission_id|null, order }
+  get walkClips() { try { return JSON.parse(localStorage.getItem(KEYS.walkClips) || "[]"); } catch { return []; } },
+  addWalkClip(c) { const l = this.walkClips; l.push(c); localStorage.setItem(KEYS.walkClips, JSON.stringify(l)); },
+  clearWalkClips() { localStorage.removeItem(KEYS.walkClips); },
 
   get isAuthed() { return !!this.token; },
 

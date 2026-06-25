@@ -17,6 +17,7 @@ import { myScreen, settingsScreen } from "./screens/my.js";
 import { petsScreen } from "./screens/pets.js";
 import { achievementsScreen } from "./screens/achievements.js";
 import { leagueScreen } from "./screens/league.js";
+import { cameraScreen } from "./screens/camera.js"; /* W4 브리지: W0 미머지로 임시 import (W0 머지 시 W0가 선등록) */
 import { startIncomingWatch } from "./incoming.js";
 import { hydrateIcons } from "./icons.js";
 
@@ -36,6 +37,9 @@ route("/home", homeScreen);
 route("/walk", walkScreen);
 route("/request/:id", requestWaitScreen);
 route("/session/:id", sessionScreen);
+
+// 카메라 (W4 — 가로 몰입 촬영). W4 브리지: W0 미머지로 임시 등록.
+route("/camera", cameraScreen);
 
 // 퀘스트 · 기록 (FE2)
 route("/quest", questScreen);
