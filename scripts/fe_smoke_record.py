@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Headless smoke for FE2 — 기록 에디터 · 2초 클립 · 다이어리 · 퀘스트 (SCR-27/20/21/22).
+"""Headless smoke for W4 — 가로 카메라 촬영 (docs/v2_redesign/14_W4_camera.md).
 
-흐름:
-  - 게스트+펫 API 셋업 후 브라우저 세션 주입.
-  - 오늘의 퀘스트 후보 3개 노출 확인 → 1개 select(lock) → 미션 리스트 확인.
-  - 기록 에디터: 가짜 카메라로 2초 클립 녹화가 실제 stop되고 /clips/upload 201인지 단언.
-  - 텍스트 입력 후 저장 → 다이어리 캘린더/목록에 방금 기록(클립 연결) 노출 단언 → 상세 진입.
-콘솔 에러 0(외부/WebGL 잡음 제외), 각 단계 스크린샷 저장.
+촬영 부분(구 FE2 기록 에디터)을 v2 W4 카메라 플로우로 교체.
+DoD:
+  (1) #/camera?quest=테스트 진입 → 가로(landscape) 레이아웃 + 상단 퀘스트 텍스트 표시, 콘솔 0.
+  (2) #/camera (쿼리 없음) → 퀘스트 텍스트 미표시.
+  (3) 촬영 버튼 → POST /clips/upload 201 → store.walkClips 길이 증가 → #/walk 복귀.
+  (4) 퀘스트 진입 촬영 시 업로드 폼(multipart)에 mission_id 포함.
+콘솔 에러 0(외부 타일/WebGL 잡음 제외), 각 단계 스크린샷 저장.
 
 카메라: --use-fake-device-for-media-stream --use-fake-ui-for-media-stream + camera/microphone 권한 grant.
+가로 레이아웃 검증을 위해 landscape 뷰포트(896x414) 사용. #/walk 복귀가 콘솔 깨끗하도록 geolocation도 grant.
 """
 from __future__ import annotations
 
@@ -25,7 +27,9 @@ os.makedirs(SHOTS, exist_ok=True)
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 IGNORE = ("maplibre", "webgl", "tile.openstreetmap", "unpkg.com", "failed to load resource",
-          "err_", "net::", "favicon")
+          "err_", "net::", "favicon", "geolocation")
+
+MISSION_ID = "m-w4-smoke-1"  # 임의 미션 id — 업로드 폼 태깅 검증용 (BE는 free-form 허용)
 
 
 def apicall(method, path, token=None, body=None):
@@ -42,14 +46,14 @@ def apicall(method, path, token=None, body=None):
 def main():
     print(f"{DIM}BASE={BASE}{RESET}")
     errors = []
-    uploads = []  # (status, url)
+    uploads = []        # (status, url)
 
     def ok(page, msg, name):
         path = os.path.join(SHOTS, f"{name}.png")
         page.screenshot(path=path)
         print(f"  {GREEN}✅{RESET} {msg}  {DIM}{path}{RESET}")
 
-    u = apicall("POST", "/auth/guest", body={"nickname": "기록이"})
+    u = apicall("POST", "/auth/guest", body={"nickname": "촬영이"})
     p = apicall("POST", "/pets", token=u["auth_token"],
                 body={"name": "콩", "breed": "말티즈", "size": "small", "personality_tags": ["온순함"]})
     print(f"{DIM}  fixture: user={u['user_id'][:8]} pet={p['pet_id'][:8]}{RESET}")
@@ -61,8 +65,23 @@ def main():
                   "--use-fake-ui-for-media-stream", "--use-gl=angle",
                   "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
         )
-        ctx = browser.new_context(viewport={"width": 414, "height": 896}, locale="ko-KR")
-        ctx.grant_permissions(["camera", "microphone"])
+        # 가로(landscape) 뷰포트 — 전체화면 카메라가 실제 가로 프레임이 되도록.
+        ctx = browser.new_context(
+            viewport={"width": 896, "height": 414}, locale="ko-KR",
+            geolocation={"latitude": 37.5665, "longitude": 126.9780}, permissions=[],
+        )
+        ctx.grant_permissions(["camera", "microphone", "geolocation"])
+        # 업로드 폼 필드 캡처: FormData.append 를 감싸 [name, value(문자열만)] 기록 → DoD(4) 직접 단언.
+        ctx.add_init_script(
+            """
+            window.__clipFormFields = [];
+            const _ap = FormData.prototype.append;
+            FormData.prototype.append = function(name, value, ...rest) {
+              try { window.__clipFormFields.push([name, (typeof value === 'string') ? value : '[blob]']); } catch (e) {}
+              return _ap.call(this, name, value, ...rest);
+            };
+            """
+        )
         page = ctx.new_page()
         page.on("console", lambda m: errors.append(f"{m.type}: {m.text}")
                 if m.type == "error" and not any(k in m.text.lower() for k in IGNORE) else None)
@@ -74,63 +93,60 @@ def main():
         try:
             page.goto(BASE, wait_until="domcontentloaded")
             page.evaluate(
-                """([t,u,p]) => { localStorage.setItem('auth_token',t); localStorage.setItem('user_id',u); localStorage.setItem('pet_id',p); }""",
+                """([t,u,p]) => {
+                    localStorage.setItem('auth_token',t);
+                    localStorage.setItem('user_id',u);
+                    localStorage.setItem('pet_id',p);
+                    localStorage.removeItem('blip_walk_clips');  // 클립 누적 초기화
+                }""",
                 [u["auth_token"], u["user_id"], p["pet_id"]],
             )
 
-            # --- SCR-27 퀘스트 후보 3개 ---
-            page.goto(BASE + "/#/quest", wait_until="networkidle")
-            page.wait_for_selector(".quest-card")
-            n = len(page.query_selector_all(".quest-card"))
-            assert n == 3, f"후보 퀘스트가 3개가 아님: {n}"
-            ok(page, f"오늘의 퀘스트 후보 {n}개 노출", "f2_01_candidates")
-
-            # --- select(lock) ---
-            page.click(".quest-card >> nth=0")
-            page.wait_for_function("!document.querySelector('#quest-confirm').disabled")
-            page.click("#quest-confirm")
-            page.wait_for_selector("#quest-locked", timeout=8000)
-            assert page.query_selector(".mission-row"), "미션 리스트가 없음"
-            ok(page, "퀘스트 select → lock + 미션 리스트('지금 찍어볼 순간')", "f2_02_locked")
-
-            # --- SCR-20 기록 에디터 진입 ---
-            page.click("#go-record")
-            page.wait_for_function("location.hash.startsWith('#/record')", timeout=8000)
+            # --- DoD (1): 퀘스트 진입 → 가로 레이아웃 + 상단 퀘스트 텍스트 ---
+            page.goto(BASE + f"/#/camera?quest=테스트&mission={MISSION_ID}", wait_until="domcontentloaded")
+            page.wait_for_selector("#camera-screen.landscape", timeout=8000)
             page.wait_for_selector("#cam-video", timeout=8000)  # 카메라 스트림 활성
-            ok(page, "기록 에디터 진입 + 카메라 프리뷰 활성", "f2_03_editor")
+            box = page.eval_on_selector("#camera-screen", "el => el.getBoundingClientRect()")
+            assert box["width"] > box["height"], f"가로 레이아웃이 아님: {box['width']}x{box['height']}"
+            assert page.query_selector("#cam-quest"), "상단 퀘스트 박스가 없음"
+            assert page.is_visible("#cam-quest"), "퀘스트 박스가 보이지 않음"
+            qtext = page.inner_text("#cam-quest")
+            assert "테스트" in qtext, f"상단 퀘스트 텍스트가 표시되지 않음: {qtext!r}"
+            ok(page, f"#/camera?quest= 진입 → 가로 {int(box['width'])}x{int(box['height'])} + 퀘스트 '{qtext.strip()}'", "w4_01_quest")
 
-            # --- 2초 클립 녹화 (실제 stop + 업로드 201) ---
-            page.click("#rec-ring")
-            page.wait_for_selector("[data-clip-id]", timeout=12000)  # 업로드 성공해야 칩 생성
+            # --- DoD (3)+(4): 촬영 → upload 201 → walkClips 증가 → #/walk 복귀, 폼에 mission_id ---
+            before = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').length")
+            page.click("#cam-shoot")
+            page.wait_for_function("location.hash.startsWith('#/walk')", timeout=15000)
             assert uploads, "clips/upload 응답이 관측되지 않음"
             up_status = uploads[-1][0]
             assert up_status == 201, f"clip 업로드 상태가 201이 아님: {up_status}"
-            clip_id = page.get_attribute("[data-clip-id]", "data-clip-id")
-            ok(page, f"2초 클립 녹화 → stop → /clips/upload {up_status} (clip={clip_id[:8]})", "f2_04_recorded")
+            after = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').length")
+            assert after == before + 1, f"store.walkClips 길이가 증가하지 않음: {before} → {after}"
+            last = page.evaluate("JSON.parse(localStorage.getItem('blip_walk_clips')||'[]').slice(-1)[0]")
+            assert last and last.get("mission_id") == MISSION_ID, f"누적 클립 mission_id 불일치: {last}"
+            # DoD (4): 업로드 폼에 mission_id 필드 포함 단언 (FormData.append 캡처)
+            fields = page.evaluate("window.__clipFormFields || []")
+            names = [f[0] for f in fields]
+            assert "file" in names and "duration_ms" in names and "order" in names, f"업로드 폼 필수 필드 누락: {names}"
+            assert ["mission_id", MISSION_ID] in [list(f) for f in fields], f"업로드 폼에 mission_id가 없음: {fields}"
+            # 서버 라운드트립 — 업로드된 클립이 서버에 mission_id로 저장됐는지 확인(end-to-end).
+            clip_id = last["clip_id"]
+            rec = apicall("POST", "/records", token=u["auth_token"], body={"clip_ids": [clip_id]})
+            detail = apicall("GET", f"/records/{rec['record_id']}", token=u["auth_token"])
+            srv_mid = next((c.get("mission_id") for c in detail.get("clips", []) if c.get("id") == clip_id), None)
+            assert srv_mid == MISSION_ID, f"서버 저장 mission_id 불일치: {srv_mid}"
+            ok(page, f"촬영 → /clips/upload {up_status} → walkClips {before}→{after} → #/walk 복귀 (폼·서버 mission_id={srv_mid})", "w4_02_shoot")
 
-            # --- 텍스트 입력 후 저장 ---
-            page.fill("#record-text", "콩이랑 동네 한 바퀴 돌았다 ☀️")
-            page.click("#save-record")
-            page.wait_for_function("location.hash.startsWith('#/diary')", timeout=8000)
-            ok(page, "메모 입력 → 저장 → 다이어리 이동", "f2_05_saved")
-
-            # --- 다이어리: 기록·클립·캘린더 노출 ---
-            page.wait_for_selector("[data-rid]", timeout=8000)
-            rid = page.get_attribute("[data-rid]", "data-rid")
-            assert "클립 1개" in page.inner_text(f'[data-rid="{rid}"]'), "기록에 연결된 클립이 표시되지 않음"
-            assert page.query_selector(".cal-cell.has"), "캘린더에 기록 표시(점)가 없음"
-            assert page.query_selector(".stat"), "스탯 카드가 없음"
-            ok(page, "다이어리: 캘린더 표시·스탯·기록(클립 1개) 노출", "f2_06_diary")
-
-            # --- SCR-22 상세 ---
-            page.click(f'[data-rid="{rid}"]')
-            page.wait_for_function("location.hash.startsWith('#/record/')", timeout=8000)
-            page.wait_for_selector("#record-view")
-            assert page.query_selector("#record-view .clip-chip"), "상세에 클립이 없음"
-            ok(page, "기록 상세 진입 + 클립 재생 요소 노출", "f2_07_detail")
+            # --- DoD (2): 쿼리 없는 진입 → 퀘스트 텍스트 미표시 ---
+            page.goto(BASE + "/#/camera", wait_until="domcontentloaded")
+            page.wait_for_selector("#camera-screen.landscape", timeout=8000)
+            page.wait_for_selector("#cam-video", timeout=8000)
+            assert page.query_selector("#cam-quest") is None, "쿼리 없이 진입했는데 퀘스트 박스가 표시됨"
+            ok(page, "#/camera (쿼리 없음) → 퀘스트 텍스트 미표시", "w4_03_noquest")
 
         except Exception as e:
-            page.screenshot(path=os.path.join(SHOTS, "f2_FAIL.png"))
+            page.screenshot(path=os.path.join(SHOTS, "w4_FAIL.png"))
             print(f"  {RED}❌ 실패: {e}{RESET}")
             print(f"  {DIM}hash={page.evaluate('location.hash')} uploads={uploads}{RESET}")
             browser.close()
@@ -144,7 +160,7 @@ def main():
             print(f"   - {e}")
         return 1
 
-    print(f"\n{GREEN}🎉 FE2 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
+    print(f"\n{GREEN}🎉 W4 카메라 헤드리스 스모크 전부 통과 (콘솔 에러 0){RESET}")
     return 0
 
 
