@@ -7,6 +7,7 @@ const KEYS = {
   settings: "settings",
   pendingJoin: "blip_pending_join",
   demo: "blip_demo_context",
+  walkClips: "blip_walk_clips", // 산책 중 촬영 클립 누적 (새로고침 내성)
 };
 
 const DEFAULT_SETTINGS = {
@@ -54,6 +55,19 @@ export const store = {
   get pendingJoin() { return localStorage.getItem(KEYS.pendingJoin); },
   setPendingJoin(code) { if (code) localStorage.setItem(KEYS.pendingJoin, code); },
   clearPendingJoin() { localStorage.removeItem(KEYS.pendingJoin); },
+
+  // 산책 중 누적 클립 (clip: {clip_id, mission_id|null, order}) — 산책 종료 시 1개 Record로 번들.
+  get walkClips() {
+    try { return JSON.parse(localStorage.getItem(KEYS.walkClips) || "[]"); }
+    catch { return []; }
+  },
+  addWalkClip(c) {
+    const list = this.walkClips;
+    list.push(c);
+    localStorage.setItem(KEYS.walkClips, JSON.stringify(list));
+    return list;
+  },
+  clearWalkClips() { localStorage.removeItem(KEYS.walkClips); },
 
   get isAuthed() { return !!this.token; },
 
