@@ -427,3 +427,38 @@ class ReportReq(BaseModel):
     target_user_id: str
     reason: str | None = None
     context: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Pet diary (W6)
+# ---------------------------------------------------------------------------
+class PetDiaryCreateReq(BaseModel):
+    pet_id: str | None = None
+    diary_date: date
+    mood: str
+    activity_tags: list[str] = []
+    text: str | None = None
+
+
+class PetDiaryUpdateReq(BaseModel):
+    mood: str | None = None
+    activity_tags: list[str] | None = None
+    text: str | None = None
+
+
+class PetDiaryCreateRes(BaseModel):
+    pet_diary_id: str
+
+
+class PetDiaryOut(BaseModel):
+    id: str
+    pet_id: str | None = None
+    diary_date: date
+    mood: str
+    activity_tags: list[str] = []
+    text: str | None = None
+    created_at: datetime
+
+
+class PetDiaryListRes(BaseModel):
+    diaries: list[PetDiaryOut] = []

@@ -954,3 +954,78 @@ textarea.input { resize: vertical; min-height: 84px; }
   box-shadow: 0 2px 0 var(--surface-shadow);
 }
 .center-modal-close:active { transform: translateY(2px); box-shadow: none; }
+
+/* === W6: pet-diary === */
+/* 펫일기 작성/상세/표시카드. 디자인 시스템(입체 칩/세그/버튼) 위에 화면 전용 셰이프만 추가.
+   외곽선 금지 — 분리는 면색+하단 솔리드 그림자(입체)로만. 인라인 스타일 금지. */
+
+/* 작성/편집 폼 래퍼 */
+.diary-edit { padding-bottom: 8px; }
+.diary-form .field > label { color: var(--on-surface-var); }
+
+/* 기분 5단계 (한 개 선택) — 입체 세그/칩 무드 */
+.mood-row { display: flex; gap: 8px; }
+.mood-opt {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 4px; border: none; cursor: pointer;
+  border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast),
+    background var(--dur-fast), color var(--dur-fast);
+}
+.mood-opt:active { transform: translateY(var(--press)); box-shadow: none; }
+.mood-opt.sel {
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+  box-shadow: 0 var(--press) 0 var(--tertiary-shadow);
+  transform: translateY(-1px);
+}
+.mood-face { font-size: 1.7rem; line-height: 1; display: inline-flex; }
+.mood-face-lg { font-size: 2.6rem; }
+.mood-label { font-size: .76rem; font-weight: 800; }
+
+/* 활동 칩 (다중 선택) — 디자인 시스템 .tags .tag 에 아이콘 정렬만 추가 */
+.diary-chips .tag { display: inline-flex; align-items: center; gap: 6px; }
+.diary-chips .tag .ic { font-size: 1.05rem; }
+
+/* 상세 카드 */
+.diary-detail-card { display: flex; flex-direction: column; gap: 14px; }
+.diary-detail-head { align-items: center; gap: 14px; }
+.diary-detail-head .mood-face-lg { color: var(--primary); }
+.diary-detail-mood { font-size: 1.15rem; }
+.diary-detail-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.diary-act {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .82rem; font-weight: 800;
+  box-shadow: 0 var(--press) 0 var(--secondary-shadow);
+}
+.diary-detail-text { margin: 0; font-weight: 600; white-space: pre-wrap; }
+.diary-actions { margin-top: 2px; }
+.diary-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* 표시 카드 (이미지4) — 기분 이모지 + 활동 아이콘 줄 + 텍스트 1~2줄 */
+.pet-diary-card { display: flex; align-items: center; gap: 14px; }
+.pet-diary-mood {
+  flex: none; width: 52px; height: 52px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); font-size: 1.9rem;
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+}
+.pet-diary-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pet-diary-acts { row-gap: 6px; }
+.pet-diary-act {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .95rem;
+}
+.pet-diary-text {
+  margin: 0; color: var(--on-surface-var); font-weight: 600; font-size: .92rem;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pet-diary-chev { flex: none; color: var(--on-surface-var); font-size: 1.2rem; }
