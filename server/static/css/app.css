@@ -954,3 +954,51 @@ textarea.input { resize: vertical; min-height: 84px; }
   box-shadow: 0 2px 0 var(--surface-shadow);
 }
 .center-modal-close:active { transform: translateY(2px); box-shadow: none; }
+
+/* === W1: home-map === */
+/* idle 홈 지도. 전체화면 지도 + 본인 중앙 빨강 마커 + 강아지-only 핀 + 가운데 프로필 팝업. */
+
+/* 레이아웃: 헤더와 탭바 사이 전체화면 지도(한 화면, 문서 스크롤 없음) */
+#view.home-map-view { padding: 0 12px calc(var(--tabbar-h) + 12px); overflow: hidden; }
+#view.home-map-view .screen {
+  height: calc(100dvh - var(--header-h) - var(--tabbar-h) - 24px);
+  min-height: 0;
+}
+.home-map-screen { width: 100%; height: 100%; }
+
+/* 본인 마커 — 빨강 변형(.me-marker.red). 빨간 도트 / 빨간 링을 두른 내 강아지. */
+.me-marker.red {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(255, 75, 75, .30), var(--shadow-1);
+  cursor: pointer;
+}
+.me-marker.red.has-char {
+  background: #fff;
+  border: 3px solid var(--danger);
+  box-shadow: 0 0 0 4px rgba(255, 75, 75, .30), var(--ambient);
+}
+
+/* 주변 강아지 핀 — 캐릭터만(이름/거리 메타 없음). 둥근 화이트 입체 핀. */
+.dog-pin {
+  cursor: pointer;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 var(--depth) 0 var(--surface-shadow), var(--ambient);
+  transform-origin: bottom center;
+  animation: marker-pop var(--dur) var(--spring) both;
+}
+.dog-pin:active { transform: translateY(var(--press)); box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient); }
+.dog-pin-face { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.dog-pin.demo {
+  background: var(--secondary-container);
+  box-shadow: 0 var(--depth) 0 var(--secondary-shadow), var(--ambient-lg);
+}
+
+/* center modal 본문 — 프로필 카드(캐릭터 + 정보 + CTA). 인라인 스타일 없이 클래스로. */
+.cm-profile { gap: 10px; }
+.cm-char { width: 96px; height: 96px; margin: 2px auto 0; display: flex; align-items: center; justify-content: center; }
+.cm-tags { justify-content: center; }
+.cm-caution { color: var(--danger); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cm-profile .cta { margin-top: 4px; }
