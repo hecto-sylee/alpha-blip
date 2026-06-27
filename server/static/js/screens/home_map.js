@@ -41,10 +41,13 @@ export async function homeMapScreen() {
   let myPet = null;
   try { myPet = (await api.get("/auth/me")).pets?.[0] || null; } catch (_) {}
 
-  // 위치: 데모면 store.demo 좌표, 아니면 GPS. idle이라 walk session 불필요.
+  // 위치: 핀(override) > 데모 > GPS. idle이라 walk session 불필요.
   const demo = store.demo;
+  const override = store.override;
   let here;
-  if (demo) {
+  if (override) {
+    here = { lat: override.lat, lng: override.lng, accuracy: 0 };
+  } else if (demo) {
     here = { lat: demo.lat, lng: demo.lng, accuracy: 0 };
   } else {
     try {
@@ -53,6 +56,7 @@ export async function homeMapScreen() {
       return renderDenied(code);
     }
   }
+  const fixedLoc = !!(override || demo); // 고정 위치 → GPS watch 비활성
 
   // --- DOM scaffold (idle: 퀘스트/종료/카운트 HUD 없음) ---
   const mapEl = el("div", { id: "walk-map" });
@@ -61,7 +65,11 @@ export async function homeMapScreen() {
     el("p.center.sub", { text: "지도를 불러올 수 없어 목록으로 표시해요." }),
     el("div", { id: "fallback-list", class: "stack" }),
   ]);
-  const screen = el("div.map-screen.home-map-screen", {}, [mapEl, fallback]);
+  const pinBtn = el("button.pin-btn", { id: "pin-btn", type: "button" }, ["📍 위치 옮기기"]);
+  const clearBtn = override
+    ? el("button.coord-clear.pin-clear", { text: "GPS", title: "핀 해제(실제 위치로)", onclick: () => { store.setOverride(null); location.reload(); } })
+    : null;
+  const screen = el("div.map-screen.home-map-screen", {}, [mapEl, fallback, pinBtn, clearBtn].filter(Boolean));
   mount(screen);
 
   const view = document.getElementById("view");
@@ -75,8 +83,34 @@ export async function homeMapScreen() {
   // 데모: 목업 강아지 마커를 직접 그린다(idle에선 내 위치 broadcast 안 함 → nearby 누락 대비).
   addDemoPeerMarker(ctx);
 
-  // --- 위치 추적: 데모면 고정, 아니면 watch → recenter ---
-  if (!demo) {
+  // --- 핀 찍기(실제 위치 대신 수동 지정) ---
+  let pinMode = false;
+  const setPin = (lng, lat) => {
+    ctx.here = { lat, lng, accuracy: 0 };
+    store.setOverride({ lat, lng });
+    updateMe(ctx); recenter(ctx);
+    Promise.resolve(refreshNearby(ctx)).catch(() => {});
+    toast("이 위치로 옮겼어요 📍", "ok");
+  };
+  pinBtn.addEventListener("click", () => {
+    if (!ctx.map) {
+      const v = prompt("위치 (위도, 경도)", `${ctx.here.lat.toFixed(5)}, ${ctx.here.lng.toFixed(5)}`);
+      if (v) { const [la, ln] = v.split(",").map((s) => parseFloat(s.trim())); if (isFinite(la) && isFinite(ln)) setPin(ln, la); }
+      return;
+    }
+    pinMode = !pinMode;
+    pinBtn.classList.toggle("on", pinMode);
+    pinBtn.textContent = pinMode ? "지도를 탭하세요" : "📍 위치 옮기기";
+    mapEl.style.cursor = pinMode ? "crosshair" : "";
+  });
+  if (ctx.map) ctx.map.on("click", (e) => {
+    if (!pinMode) return;
+    pinMode = false; pinBtn.classList.remove("on"); pinBtn.textContent = "📍 위치 옮기기"; mapEl.style.cursor = "";
+    setPin(e.lngLat.lng, e.lngLat.lat);
+  });
+
+  // --- 위치 추적: 고정(핀/데모)이면 watch 안 함, 아니면 watch → recenter ---
+  if (!fixedLoc) {
     const stopWatch = watch(
       (pos) => {
         ctx.here = pos;

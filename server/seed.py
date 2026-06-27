@@ -12,35 +12,30 @@ from .models import Pet, QuestMission, QuestTemplate, User, WalkSession, utcnow
 # is_mock=False 라서 (1) 모든 사용자의 nearby에 보이고 (2) 매칭 요청 시 자동수락되지
 # 않는다(망고만 is_mock=True 라 즉시 자동수락). 토큰으로 idempotent 하게 식별한다.
 DEMO_DUMMY_PREFIX = "demo-dummy:"
+# 견종 다양성을 보여주는 큐레이션 더미들(시연용). breed가 픽셀 외형을 결정하고,
+# 일부는 appearance.equipped로 옷을 입혀 꾸미기 기능을 미리 보여준다.
 DEMO_DUMMIES = [
-    {
-        "token": DEMO_DUMMY_PREFIX + "choco",
-        "nickname": "한강 초코",
-        "pet_name": "초코",
-        "breed": "푸들",
-        "size": "small",
-        "tags": ["온순함", "낯가림 없음"],
-        "sociality": 4,
-        "activity_level": 3,
-        "walk_style": "sniff",
-        "caution_notes": "데모용 더미 프로필입니다.",
-        "lat": 37.5006,
-        "lng": 127.0406,
-    },
-    {
-        "token": DEMO_DUMMY_PREFIX + "kong",
-        "nickname": "테헤란 콩",
-        "pet_name": "콩",
-        "breed": "말티즈",
-        "size": "small",
-        "tags": ["활발함", "공놀이 좋아함"],
-        "sociality": 5,
-        "activity_level": 4,
-        "walk_style": "active",
-        "caution_notes": "데모용 더미 프로필입니다.",
-        "lat": 37.5014,
-        "lng": 127.0402,
-    },
+    {"token": DEMO_DUMMY_PREFIX + "choco", "nickname": "한강 초코", "pet_name": "초코", "breed": "푸들",
+     "size": "small", "tags": ["온순함", "낯가림 없음"], "sociality": 4, "activity_level": 3,
+     "walk_style": "sniff", "lat": 37.5006, "lng": 127.0406, "appearance": {"equipped": ["bandana"]}},
+    {"token": DEMO_DUMMY_PREFIX + "kong", "nickname": "테헤란 콩", "pet_name": "콩", "breed": "말티즈",
+     "size": "small", "tags": ["활발함", "공놀이 좋아함"], "sociality": 5, "activity_level": 4,
+     "walk_style": "active", "lat": 37.5014, "lng": 127.0402},
+    {"token": DEMO_DUMMY_PREFIX + "mochi", "nickname": "역삼 모찌", "pet_name": "모찌", "breed": "시바견",
+     "size": "medium", "tags": ["호기심", "마이웨이"], "sociality": 3, "activity_level": 4,
+     "walk_style": "normal", "lat": 37.5012, "lng": 127.0411, "appearance": {"equipped": ["bowtie"]}},
+    {"token": DEMO_DUMMY_PREFIX + "bori", "nickname": "선릉 보리", "pet_name": "보리", "breed": "웰시코기",
+     "size": "medium", "tags": ["활발함", "먹보"], "sociality": 5, "activity_level": 5,
+     "walk_style": "active", "lat": 37.5001, "lng": 127.0392},
+    {"token": DEMO_DUMMY_PREFIX + "happy", "nickname": "테헤란 해피", "pet_name": "해피", "breed": "골든리트리버",
+     "size": "large", "tags": ["온순함", "사람 좋아함"], "sociality": 5, "activity_level": 3,
+     "walk_style": "sniff", "lat": 37.5018, "lng": 127.0399, "appearance": {"equipped": ["scarf"]}},
+    {"token": DEMO_DUMMY_PREFIX + "latte", "nickname": "강남 라떼", "pet_name": "라떼", "breed": "닥스훈트",
+     "size": "small", "tags": ["겁많음", "낯가림"], "sociality": 2, "activity_level": 3,
+     "walk_style": "slow", "lat": 37.4999, "lng": 127.0405},
+    {"token": DEMO_DUMMY_PREFIX + "cloud", "nickname": "포스코 구름", "pet_name": "구름", "breed": "비숑",
+     "size": "small", "tags": ["활발함", "장난꾸러기"], "sociality": 4, "activity_level": 4,
+     "walk_style": "active", "lat": 37.5009, "lng": 127.0414, "appearance": {"equipped": ["cap"]}},
 ]
 
 QUESTS = [
@@ -194,6 +189,9 @@ def _ensure_demo_dummies(db: Session) -> None:
             user.nickname = d["nickname"]
             user.is_mock = False  # 자동수락 대상이 아님(매칭 대기)
 
+        appearance_json = (
+            json.dumps(d["appearance"], ensure_ascii=False) if d.get("appearance") else None
+        )
         pet = (
             db.query(Pet).filter(Pet.user_id == user.id).order_by(Pet.created_at.asc()).first()
         )
@@ -204,15 +202,18 @@ def _ensure_demo_dummies(db: Session) -> None:
                 breed=d["breed"],
                 size=d["size"],
                 personality_tags=json.dumps(d["tags"], ensure_ascii=False),
-                sociality=d["sociality"],
-                activity_level=d["activity_level"],
-                walk_style=d["walk_style"],
-                caution_notes=d["caution_notes"],
+                sociality=d.get("sociality"),
+                activity_level=d.get("activity_level"),
+                walk_style=d.get("walk_style"),
+                caution_notes=d.get("caution_notes", "데모용 더미 프로필입니다."),
+                appearance_json=appearance_json,
             )
             db.add(pet)
             db.flush()
         else:
             pet.name = d["pet_name"]
+            pet.breed = d["breed"]
+            pet.appearance_json = appearance_json
 
         ws = (
             db.query(WalkSession)

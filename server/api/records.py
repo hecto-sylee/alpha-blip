@@ -1,12 +1,16 @@
 """Records (F-10): diary/room walk entries with linked clips + reaction aggregates."""
 from __future__ import annotations
 
+import os
 from collections import Counter
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from .. import merge as merge_svc
+from ..database import SessionLocal
 from ..deps import get_current_user, get_db
 from ..models import Clip, DailyQuest, Reaction, Record, User
 from ..schemas import (
@@ -20,6 +24,7 @@ from ..schemas import (
 )
 from ..services import achievements as ach_svc
 from ..services import leagues as league_svc
+from ..services import points as points_svc
 from ..services import room as room_svc
 from ..utils.events import log_event
 
@@ -62,13 +67,46 @@ def serialize_record(db: Session, rec: Record) -> RecordOut:
             for c in clips
         ],
         reactions=[ReactionAgg(emoji=e, count=n) for e, n in counts.items()],
+        merged_ready=bool(rec.merged_path),
         created_at=rec.created_at,
     )
+
+
+UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+MERGED_DIR = os.path.join(UPLOADS_DIR, "merged")
+
+
+def _merge_record_task(record_id: str) -> None:
+    """BackgroundTask: 기록의 클립들을 순서대로 1개 mp4로 합성하고 merged_path를 기록한다."""
+    db = SessionLocal()
+    try:
+        rec = db.get(Record, record_id)
+        if rec is None:
+            return
+        clips = (
+            db.query(Clip)
+            .filter(Clip.record_id == record_id, Clip.status == "active")
+            .order_by(Clip.order.asc(), Clip.created_at.asc())
+            .all()
+        )
+        paths = [os.path.join(UPLOADS_DIR, f"{c.id}.webm") for c in clips]
+        paths = [p for p in paths if os.path.exists(p)]
+        if not paths:
+            return
+        out = os.path.join(MERGED_DIR, f"{record_id}.mp4")
+        merge_svc.build_record_video(paths, out)
+        rec.merged_path = os.path.relpath(out, UPLOADS_DIR)  # "merged/{id}.mp4"
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 @router.post("/records", response_model=RecordCreateRes, status_code=201)
 def create_record(
     body: RecordCreateReq,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RecordCreateRes:
@@ -125,8 +163,30 @@ def create_record(
         streak=ach_svc.compute_progress(db, user.id)["streak"],
         when=body.walked_at,
     )
+    points_awarded = points_svc.award_for_record(db, user, quest_certified=daily_quest_id is not None)
     db.commit()
-    return RecordCreateRes(record_id=rec.id, unlocked=unlocked)
+    if body.clip_ids:  # 클립이 있으면 백그라운드로 1개 영상 합성
+        background_tasks.add_task(_merge_record_task, rec.id)
+    return RecordCreateRes(
+        record_id=rec.id, unlocked=unlocked,
+        points_awarded=points_awarded, points=user.points,
+    )
+
+
+@router.get("/records/{record_id}/video/download")
+def download_record_video(record_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rec = db.get(Record, record_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="record not found")
+    if rec.user_id != user.id and rec.visibility != "room":
+        raise HTTPException(status_code=403, detail="not allowed")
+    if not rec.merged_path:
+        raise HTTPException(status_code=409, detail="아직 합성 중이거나 영상이 없어요")
+    abs_path = os.path.join(UPLOADS_DIR, rec.merged_path)
+    if not os.path.exists(abs_path):
+        raise HTTPException(status_code=404, detail="video missing")
+    fname = f"letspaw_{rec.walked_at or 'walk'}.mp4"
+    return FileResponse(abs_path, media_type="video/mp4", filename=fname)
 
 
 @router.get("/records", response_model=RecordListRes)

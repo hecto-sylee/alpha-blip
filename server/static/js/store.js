@@ -8,6 +8,7 @@ const KEYS = {
   pendingJoin: "blip_pending_join",
   demo: "blip_demo_context",
   walkClips: "blip_walk_clips", // 산책 중 촬영 클립 누적 (새로고침 내성)
+  override: "override_location", // 핀 찍기로 수동 지정한 위치 {lat,lng}
 };
 
 const DEFAULT_SETTINGS = {
@@ -41,6 +42,15 @@ export const store = {
     else localStorage.removeItem(KEYS.demo);
   },
   clearDemo() { localStorage.removeItem(KEYS.demo); },
+
+  get override() {
+    try { return JSON.parse(localStorage.getItem(KEYS.override) || "null"); }
+    catch { return null; }
+  },
+  setOverride(loc) {
+    if (loc) localStorage.setItem(KEYS.override, JSON.stringify({ lat: loc.lat, lng: loc.lng }));
+    else localStorage.removeItem(KEYS.override);
+  },
 
   get settings() {
     try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(KEYS.settings) || "{}") }; }

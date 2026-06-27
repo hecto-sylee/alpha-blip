@@ -32,6 +32,13 @@ export async function myScreen() {
         ]),
       ]),
 
+      el("div.card.tappable.shop-entry", { onclick: () => navigate("/shop") }, [
+        el("div.row.between", {}, [
+          el("span.strong", { text: `🦴 ${me?.points ?? 0} 포인트` }),
+          el("span.chev", { text: "상점 가기 ›" }),
+        ]),
+      ]),
+
       el("div.stats", {}, [
         statCard(String(diary.length), "산책 기록"),
         statCard((totalDist / 1000).toFixed(1) + "km", "누적 거리"),
@@ -146,6 +153,23 @@ export async function settingsScreen() {
         el("div.h2", { text: "차단 목록" }),
         el("div.row", {}, [blockInput, blockBtn]),
         blockList,
+      ]),
+
+      el("div.card", {}, [
+        el("div.h2", { text: "데모 데이터" }),
+        el("p.sub", { text: "쌓인 더미·목업 강아지와 그 기록을 정리해요. 내 기록은 유지됩니다." }),
+        el("button.btn.danger", {
+          text: "데모 데이터 정리",
+          onclick: async (e) => {
+            if (!confirm("더미·목업 데모 데이터를 정리할까요? (내 기록은 유지)")) return;
+            const btn = e.currentTarget; btn.disabled = true;
+            try {
+              const r = await api.post("/demo/reset", {});
+              toast(`데모 데이터를 정리했어요 (${r.removed_demo_users}명 삭제)`, "ok");
+            } catch (err) { toast(err.message || "정리 실패", "err"); }
+            finally { btn.disabled = false; }
+          },
+        }),
       ]),
     ])
   );

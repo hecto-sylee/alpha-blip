@@ -23,6 +23,16 @@ def _loads(value: str | None) -> list:
         return []
 
 
+def _loads_obj(value: str | None) -> dict | None:
+    if not value:
+        return None
+    try:
+        v = json.loads(value)
+        return v if isinstance(v, dict) else None
+    except (ValueError, TypeError):
+        return None
+
+
 def _to_res(pet: Pet) -> PetRes:
     return PetRes(
         id=pet.id,
@@ -39,6 +49,7 @@ def _to_res(pet: Pet) -> PetRes:
         walk_style=pet.walk_style,
         preferred_partner_size=_loads(pet.preferred_partner_size),
         caution_notes=pet.caution_notes,
+        appearance=_loads_obj(pet.appearance_json),
     )
 
 
@@ -67,6 +78,9 @@ def create_pet(
         if body.preferred_partner_size is not None
         else None,
         caution_notes=body.caution_notes,
+        appearance_json=json.dumps(body.appearance, ensure_ascii=False)
+        if body.appearance is not None
+        else None,
     )
     db.add(pet)
     db.flush()
@@ -111,6 +125,9 @@ def update_pet(
         raise HTTPException(status_code=403, detail="not your pet")
 
     data = body.model_dump(exclude_unset=True)
+    if "appearance" in data:  # DTO명(appearance) → 컬럼명(appearance_json), 객체→JSON
+        appearance = data.pop("appearance")
+        pet.appearance_json = json.dumps(appearance, ensure_ascii=False) if appearance is not None else None
     for field in ("personality_tags", "preferred_partner_size"):
         if field in data and data[field] is not None:
             data[field] = json.dumps(data[field], ensure_ascii=False)

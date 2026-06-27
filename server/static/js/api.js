@@ -50,6 +50,18 @@ async function blobUrl(path) {
   return URL.createObjectURL(blob);
 }
 
+// 인증 미디어를 파일로 다운로드한다(토큰 헤더 → blob → <a download>).
+async function download(path, filename) {
+  const url = await blobUrl(path);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "letspaw.mp4";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 export const api = {
   get: (p, o) => request("GET", p, o),
   post: (p, body, o) => request("POST", p, { body, ...o }),
@@ -57,4 +69,5 @@ export const api = {
   del: (p, o) => request("DELETE", p, o),
   upload: (p, form, o) => request("POST", p, { form, ...o }),
   blobUrl,
+  download,
 };

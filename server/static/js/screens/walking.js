@@ -133,7 +133,8 @@ export async function walkingScreen(_params, query = {}) {
       const clip_ids = store.walkClips.map((c) => c.clip_id).filter(Boolean);
       const payload = { visibility: "diary", walked_at: todayStr(), clip_ids, daily_quest_id: dailyQuestId };
       if (matchId) payload.match_session_id = matchId; else payload.walk_session_id = walkId;
-      await api.post("/records", payload);
+      const rec = await api.post("/records", payload);
+      if (rec?.points_awarded) toast(`🦴 +${rec.points_awarded} 포인트! (보유 ${rec.points})`, "ok");
 
       store.clearWalkClips();
       store.setWalkId(null);

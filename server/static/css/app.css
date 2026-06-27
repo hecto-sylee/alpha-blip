@@ -1135,3 +1135,123 @@ textarea.input { resize: vertical; min-height: 84px; }
 .w3-fallback .w3-foot,
 .w3-fallback .w3-pwrap,
 .w3-fallback .w3-partner { position: absolute; transform: translate(-50%, -50%); }
+
+/* ========================================================================= */
+/* LetsPaw 픽셀-에겐 오버레이 — 토큰 리스킨(전 컴포넌트 자동 적용) + 각진 픽셀 + Galmuri */
+/* ========================================================================= */
+:root {
+  --primary: #FF9EBB; --primary-dim: #F2789F; --primary-shadow: #E0608A; --on-primary: #FFF8EE;
+  --primary-container: #FFE0EB; --on-primary-container: #7A3F50;
+  --secondary: #FFD98A; --secondary-shadow: #E9B25A; --secondary-container: #FFF1C9; --on-secondary-container: #7A5526;
+  --tertiary: #BFE9D2; --tertiary-shadow: #8FCFB0; --tertiary-container: #DFF5E9; --on-tertiary-container: #2C6B50;
+  --success: #8FCFB0; --success-shadow: #6BB495; --danger: #F4748B; --danger-shadow: #D9536D;
+  --bg: #FFF8EE; --surface: #FFF8EE; --surface-2: #FBEEDD; --surface-3: #F2E0CC; --surface-shadow: #E0C3B4;
+  --on-surface: #6E544C; --on-surface-var: #A98E84; --divider: #E7C9BC;
+  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0; --r-pill: 0;
+  --depth: 4px; --depth-cta: 5px; --press: 3px;
+  --ambient: 3px 3px 0 var(--surface-shadow); --ambient-lg: 4px 4px 0 var(--surface-shadow);
+  --shadow-1: 2px 2px 0 var(--surface-shadow); --shadow-2: 3px 3px 0 var(--surface-shadow); --shadow-pop: 4px 4px 0 var(--surface-shadow);
+  --font: "Galmuri11", "DungGeunMo", monospace;
+  --font-head: "Galmuri14", "Galmuri11", "DungGeunMo", monospace;
+  --bd: var(--on-surface);
+}
+body {
+  font-family: var(--font);
+  -webkit-font-smoothing: none; font-smooth: never;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(0deg, rgba(255,224,235,.26) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,241,201,.40) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+#app { box-shadow: none; }
+h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; letter-spacing: 0; line-height: 1.4; }
+.h1 { font-size: 1.35rem; } .h2 { font-size: 1.02rem; } .title { font-size: 1.1rem; }
+.sub, .muted { font-size: .8rem; line-height: 1.7; }
+.strong { font-weight: 400; }
+/* 상단바 = 핑크 픽셀 바 */
+.topbar { background: var(--primary); box-shadow: 0 3px 0 var(--primary-shadow); }
+.topbar .brand { font-family: var(--font-head); color: var(--on-primary); font-weight: 400; }
+.topbar .brand .dot { color: var(--on-primary); }
+.topbar .who { color: var(--on-primary); opacity: .92; }
+/* 각진 픽셀 + 코코아 아웃라인 */
+.card, .stat, .window, .ach-card, .set-row, .cz-card, .cz-stage, .shop-item, .shop-stage {
+  border: 2px solid var(--on-surface); box-shadow: var(--ambient);
+}
+.card, .cta, .btn, .fab, .input, textarea, select, .seg .opt, .tag, .chip, .badge, .window, .toast,
+.stat, .av, .pet-row-char, .cz-toggle, .cz-chip, .cz-breed, .shop-item, .shop-btn, .day-bar, .nametag, .mini-chip {
+  border-radius: 0 !important;
+}
+.btn, .cta { border: 2px solid var(--on-surface); }
+.input, textarea, select { border: 2px solid var(--surface-shadow); background: var(--surface); }
+.input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+.tabbar { background: var(--surface); border-top: 2px solid var(--surface-shadow); }
+.tabbar a.active, .tabbar a.sel, .tabbar a[data-active] { color: var(--primary-dim); }
+.chip { border: 2px solid var(--on-surface); }
+/* 지도/영상/사진은 픽셀화 제외, 강아지·아이콘만 크리스피 */
+.lp-dog, .lp-dog *, .ic, .has-char img { image-rendering: pixelated; }
+
+/* ---------------- Dog customizer (강아지 꾸미기) ---------------- */
+.cz-card { padding: 14px; }
+.cz-title { font-family: var(--font-head); font-size: 1rem; margin-bottom: 10px; }
+.cz-root { display: flex; flex-direction: column; gap: 12px; }
+.cz-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--surface-2); padding: 14px; }
+.cz-preview { width: 132px; height: 132px; image-rendering: pixelated; }
+.cz-preview svg { width: 100%; height: 100%; }
+.cz-pose { justify-content: center; }
+.cz-toggle { width: 100%; text-align: left; font-weight: 400; font-family: var(--font); font-size: .92rem; color: var(--on-surface);
+  background: var(--secondary-container); border: 2px solid var(--on-surface); padding: 10px 14px; cursor: pointer; box-shadow: 3px 3px 0 var(--secondary-shadow); }
+.cz-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+.cz-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cz-breed { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px; background: var(--surface-2); border: 2px solid transparent; cursor: pointer; }
+.cz-breed svg { width: 46px; height: 46px; image-rendering: pixelated; }
+.cz-breed small { font-size: .66rem; color: var(--on-surface-var); }
+.cz-breed.on { border-color: var(--primary); background: var(--primary-container); }
+.cz-controls { display: flex; flex-direction: column; gap: 12px; }
+.cz-field { display: flex; flex-direction: column; gap: 6px; }
+.cz-label { font-size: .78rem; color: var(--on-surface-var); }
+.cz-row { display: flex; align-items: center; gap: 8px; }
+.cz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cz-chip { padding: 6px 11px; font-size: .78rem; background: var(--surface-2); color: var(--on-surface-var); border: 2px solid var(--on-surface); cursor: pointer; user-select: none; }
+.cz-chip.on { background: var(--primary); color: var(--on-primary); }
+.cz-sw { width: 24px; height: 24px; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); }
+.cz-sw.on { box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px var(--primary); }
+.cz-color { width: 34px; height: 30px; border: 2px solid var(--on-surface); background: none; cursor: pointer; padding: 0; flex: none; }
+
+/* ---------------- Shop (상점) ---------------- */
+.row.between { justify-content: space-between; align-items: center; }
+.shop-balance { font-family: var(--font-head); font-size: .95rem; background: var(--secondary-container); color: var(--on-secondary-container); padding: 6px 14px; border: 2px solid var(--on-surface); }
+.shop-entry .strong { font-family: var(--font-head); font-size: 1rem; }
+.shop-stage { display: flex; justify-content: center; padding: 16px; background: var(--surface-2); }
+.shop-preview { width: 140px; height: 140px; image-rendering: pixelated; }
+.shop-preview svg { width: 100%; height: 100%; }
+.share-btn { width: 100%; }
+.shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.shop-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; background: var(--surface); }
+.shop-item.equipped { outline: 3px solid var(--primary); }
+.shop-thumb { width: 60px; height: 60px; image-rendering: pixelated; }
+.shop-thumb svg { width: 100%; height: 100%; }
+.shop-name { font-size: .74rem; color: var(--on-surface-var); text-align: center; }
+.shop-btn { width: 100%; font-family: var(--font-head); font-size: .8rem; border: 2px solid var(--on-surface); cursor: pointer; padding: 6px 4px; color: var(--on-primary); background: var(--primary); box-shadow: 0 3px 0 var(--primary-shadow); }
+.shop-btn:active { transform: translateY(3px); box-shadow: none; }
+.shop-btn.equip { background: var(--secondary); color: var(--on-secondary-container); box-shadow: 0 3px 0 var(--secondary-shadow); }
+.shop-btn.on { background: var(--surface-3); color: var(--on-surface-var); box-shadow: 0 3px 0 var(--surface-shadow); }
+.shop-btn.locked, .shop-btn:disabled { background: var(--surface-2); color: var(--on-surface-var); box-shadow: 0 3px 0 var(--surface-shadow); cursor: not-allowed; }
+
+/* ---------------- Pin drop / auth hero ---------------- */
+.pin-btn { position: absolute; right: 14px; top: 70px; z-index: 25; font-family: var(--font-head); font-size: .85rem;
+  background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); padding: 9px 14px; box-shadow: 3px 3px 0 var(--surface-shadow); cursor: pointer; }
+.pin-btn.on { background: var(--primary); color: var(--on-primary); box-shadow: 3px 3px 0 var(--primary-shadow); }
+.coord-clear { margin-left: 8px; font-size: .7rem; border: 2px solid var(--on-surface); cursor: pointer; background: var(--surface-2); color: var(--on-surface-var); padding: 2px 8px; }
+.auth-hero { width: 132px; height: 132px; margin: 0 auto 6px; image-rendering: pixelated; }
+.auth-hero svg { width: 100%; height: 100%; }
+
+/* ---------------- Camera (W4) + Record tab media ---------------- */
+.cap-screen { display: flex; flex-direction: column; min-height: calc(100dvh - var(--header-h)); gap: 10px; }
+.cap-quest { background: var(--primary); color: var(--on-primary); font-family: var(--font-head); padding: 10px 14px; display: flex; align-items: center; gap: 6px; }
+.cap-stage { position: relative; background: #2A211C; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 240px; overflow: hidden; }
+.cap-video { width: 100%; max-height: 62vh; display: block; object-fit: cover; }
+.cap-count { position: absolute; font-family: var(--font-head); font-size: 3rem; color: #fff; text-shadow: 2px 2px 0 #000; }
+.cap-foot { padding: 0 16px 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.rec-media { margin: 4px 0; }
+.rec-media video { width: 100%; border: 2px solid var(--on-surface); background: #000; display: block; }

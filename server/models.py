@@ -44,8 +44,24 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String, nullable=True)
     profile_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     auth_token: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    login_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)  # 아이디 기반 로그인(PoC)
     is_mock: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    points: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)  # 소비 재화(상점)
+    kakao_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)
+    is_kakao: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class UserItem(Base):
+    """상점에서 구매해 소유한 아이템(옷). 장착 상태는 pet.appearance_json.equipped."""
+    __tablename__ = "user_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    item_key: Mapped[str] = mapped_column(String, nullable=False)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "item_key", name="uq_user_item"),)
 
 
 class Pet(Base):
@@ -66,6 +82,7 @@ class Pet(Base):
     walk_style: Mapped[str | None] = mapped_column(String, nullable=True)
     preferred_partner_size: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
     caution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    appearance_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # 픽셀 외형/커마(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -155,6 +172,7 @@ class Record(Base):
     distance_meters: Mapped[int | None] = mapped_column(Integer, nullable=True)
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     decoration_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    merged_path: Mapped[str | None] = mapped_column(String, nullable=True)  # 합성 영상(다운로드)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

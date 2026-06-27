@@ -18,6 +18,35 @@ class GuestSignupRes(BaseModel):
     auth_token: str
 
 
+class LoginReq(BaseModel):
+    login_id: str
+    nickname: str | None = None
+
+
+class LoginRes(BaseModel):
+    user_id: str
+    auth_token: str
+    nickname: str
+    is_new: bool = False
+
+
+class KakaoLoginReq(BaseModel):
+    code: str
+    redirect_uri: str | None = None
+
+
+class KakaoLoginRes(BaseModel):
+    user_id: str
+    auth_token: str
+    nickname: str
+    is_new: bool = False
+
+
+class KakaoUrlRes(BaseModel):
+    enabled: bool = False
+    authorize_url: str | None = None
+
+
 class PetSummary(BaseModel):
     id: str
     name: str
@@ -25,12 +54,14 @@ class PetSummary(BaseModel):
     photo_url: str | None = None
     size: str | None = None
     personality_tags: list[str] = []
+    appearance: dict | None = None  # 픽셀 외형/커마(마커·아바타 렌더용)
 
 
 class MeRes(BaseModel):
     id: str
     nickname: str
     profile_image_url: str | None = None
+    points: int = 0
     pets: list[PetSummary] = []
 
 
@@ -51,6 +82,7 @@ class PetCreateReq(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] | None = None
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetUpdateReq(BaseModel):
@@ -67,6 +99,7 @@ class PetUpdateReq(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] | None = None
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetCreateRes(BaseModel):
@@ -88,6 +121,7 @@ class PetRes(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] = []
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetListRes(BaseModel):
@@ -234,6 +268,28 @@ class RecordCreateReq(BaseModel):
 class RecordCreateRes(BaseModel):
     record_id: str
     unlocked: list[UnlockedAchievement] = []
+    points_awarded: int = 0
+    points: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Shop / points
+# ---------------------------------------------------------------------------
+class ShopBuyReq(BaseModel):
+    item_key: str
+
+
+class ShopItemRes(BaseModel):
+    key: str
+    name: str
+    slot: str
+    cost: int
+    owned: bool = False
+
+
+class ShopRes(BaseModel):
+    points: int = 0
+    items: list[ShopItemRes] = []
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +392,7 @@ class RecordOut(BaseModel):
     daily_quest_id: str | None = None
     clips: list[ClipOut] = []
     reactions: list[ReactionAgg] = []
+    merged_ready: bool = False  # 합성 영상 다운로드 가능 여부
     created_at: datetime
 
 
