@@ -19,15 +19,19 @@ import * as poll from "../polling.js";
 import { getOnce } from "../geo.js";
 import { petCharacterEl } from "../character.js";
 
-// 기존 산책 지도와 동일한 OSM 래스터 스타일(외부 타일).
+// 밝고 단순한 파스텔 톤 타일(CARTO Positron) — 홈/산책과 통일.
 const OSM_STYLE = {
   version: 8,
   sources: {
     osm: {
       type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [
+        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+      ],
       tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
+      attribution: "© OpenStreetMap © CARTO",
     },
   },
   layers: [{ id: "osm", type: "raster", source: "osm" }],
@@ -55,6 +59,7 @@ export async function matchingScreen(params) {
   const statusText = el("span.strong", { id: "w3-status", text: "상대의 수락을 기다리는 중…" });
   const hintText = el("span", { id: "w3-hint-text", text: "요청을 보냈어요. 상대가 수락하면 함께 걸어요." });
   const cta = el("button.cta", { id: "w3-cta", text: "수락 대기 중…", disabled: true });
+  const endBtn = el("button.btn.danger", { id: "w3-end", text: "산책 종료", disabled: true });
 
   const mapEl = el("div.w3-map", { id: "w3-map" });
   const fallback = el("div.w3-fallback.hidden", { id: "w3-fallback" });
@@ -62,6 +67,7 @@ export async function matchingScreen(params) {
   const bottom = el("div.w3-bottom", {}, [
     el("div.w3-hint", {}, [icon("footprints"), hintText]),
     cta,
+    endBtn,
   ]);
   const screen = el("div.map-screen", {}, [mapEl, fallback, top, bottom]);
   mount(screen);
@@ -109,20 +115,52 @@ export async function matchingScreen(params) {
     }
   }, STATUS_POLL_MS);
 
-  // --- [매칭 성공] → 산책중으로 인계 ---
-  cta.addEventListener("click", () => {
-    if (!ctx.sessionId || ctx.proceeding) return;
+  // --- 만남 게이트: [만났습니다] → 양쪽 met이면 퀘스트 페이지 ---
+  function proceedToQuest() {
+    if (ctx.proceeding) return;
     ctx.proceeding = true;
-    poll.stop("w3-match-status");
-    poll.stop("w3-footsteps");
-    store.clearWalkClips();                 // 새 산책 클립 누적을 깨끗이 시작
+    poll.stop("w3-match-status"); poll.stop("w3-footsteps"); poll.stop("w3-met");
+    store.clearWalkClips(); // 새 산책 클립 누적을 깨끗이 시작
     try { celebrate(ctx.myPet); } catch (_) {}
     setTimeout(() => navigate(`/walk?match=${ctx.sessionId}`), 500);
+  }
+
+  cta.addEventListener("click", async () => {
+    if (!ctx.sessionId || ctx.proceeding) return;
+    cta.disabled = true; cta.textContent = "확인 중…";
+    try {
+      const s = await api.post(`/match-sessions/${ctx.sessionId}/met`, {});
+      if (s.both_met) { proceedToQuest(); return; }
+      cta.textContent = "상대를 기다려요…";
+      const st = document.getElementById("w3-status");
+      if (st) st.textContent = "만났어요! 상대가 누르면 시작해요";
+      poll.start("w3-met", async () => {
+        try {
+          const r = await api.get(`/match-sessions/${ctx.sessionId}`);
+          if (r.both_met) { poll.stop("w3-met"); proceedToQuest(); }
+        } catch (_) {}
+      }, STATUS_POLL_MS);
+    } catch (e) {
+      toast(e.message || "실패했어요", "err");
+      cta.disabled = false; cta.textContent = "만났습니다";
+    }
+  });
+
+  // --- [산책 종료] → 세션 종료 후 홈 ---
+  endBtn.addEventListener("click", async () => {
+    if (ctx.proceeding) return;
+    endBtn.disabled = true;
+    try { if (ctx.sessionId) await api.post(`/match-sessions/${ctx.sessionId}/end`, {}); } catch (_) {}
+    poll.stop("w3-match-status"); poll.stop("w3-footsteps"); poll.stop("w3-met");
+    store.setWalkId(null);
+    toast("산책을 종료했어요");
+    navigate("/home");
   });
 
   onLeave(() => {
     poll.stop("w3-match-status");
     poll.stop("w3-footsteps");
+    poll.stop("w3-met");
   });
 }
 
@@ -209,11 +247,13 @@ async function onAccepted(ctx, sessionId) {
   fitBoth(ctx);
 
   const st = document.getElementById("w3-status");
-  if (st) st.textContent = `${partnerNick}님이 다가오고 있어요`;
+  if (st) st.textContent = `${partnerNick}님과 만나는 중…`;
   const ht = document.getElementById("w3-hint-text");
-  if (ht) ht.textContent = "발자국을 따라 가까워지는 중 — 만나면 매칭을 확정해요.";
+  if (ht) ht.textContent = "실제로 만나면 [만났습니다]를 눌러요. 둘 다 누르면 퀘스트가 열려요.";
   const cta = document.getElementById("w3-cta");
-  if (cta) { cta.disabled = false; cta.textContent = "매칭 성공"; }
+  if (cta) { cta.disabled = false; cta.textContent = "만났습니다"; }
+  const eb = document.getElementById("w3-end");
+  if (eb) eb.disabled = false;
 
   // 발자국 트래킹 시뮬 — 틱마다 직전 위치에 발자국을 떨구고 서로 가까워진다.
   poll.start("w3-footsteps", () => footTick(ctx), FOOT_TICK_MS);

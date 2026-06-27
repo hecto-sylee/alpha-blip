@@ -149,8 +149,13 @@ export async function recordTabScreen(_p, query) {
     section.innerHTML = "";
     section.append(el("h2.h2", { text: "내 기록 영상" }));
 
-    const myClips = records.flatMap((r) => r.clips || []);
-    section.append(buildThumbStrip(myClips, "my-clips", "이 날의 기록 영상이 없어요.", seq));
+    // 합성된 가로(16:9) 영상을 크게 재생 + 우상단 작은 다운로드 아이콘.
+    const myRecords = records.filter((r) => (r.clips || []).length);
+    if (!myRecords.length) {
+      section.append(el("p.sub.record-empty", { text: "이 날의 기록 영상이 없어요." }));
+    } else {
+      for (const r of myRecords) section.append(buildRecordVideo(r, seq));
+    }
 
     // 매칭 여부: record 의 match_session_id 유무. 혼자 산책이면 상대 영역 숨김.
     const sessionIds = [...new Set(records.filter((r) => r.match_session_id).map((r) => r.match_session_id))];
@@ -168,6 +173,30 @@ export async function recordTabScreen(_p, query) {
 
     section.append(el("h2.h2.record-partner-title", { text: "매칭 상대 기록 영상" }));
     section.append(buildThumbStrip(partnerClips, "partner-clips", "상대의 기록 영상이 없어요.", seq));
+  }
+
+  // 한 기록 = 합성 가로영상 한 편(autoplay/loop) + 우상단 작은 다운로드 아이콘
+  function buildRecordVideo(r, seq) {
+    const frame = el("div.record-video-frame", {}, [el("span.record-video-loading", {}, [icon("film")])]);
+    const dl = el("button.record-video-dl", { type: "button", "aria-label": "영상 다운로드", title: "영상 다운로드", text: "↓" });
+    dl.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      dl.disabled = true;
+      try {
+        await api.download(`/records/${r.id}/video/download`, `letspaw_${r.walked_at || "walk"}.mp4`);
+        toast("영상을 저장했어요", "ok", "film");
+      } catch (err) {
+        toast(err.status === 409 ? "영상을 합치는 중이에요. 잠시 후 다시 시도해 주세요" : (err.message || "다운로드 실패"), "err");
+      } finally { dl.disabled = false; }
+    });
+    api.blobUrl(`/records/${r.id}/video/download`).then((url) => {
+      if (seq !== renderSeq) { try { URL.revokeObjectURL(url); } catch (_) {} return; }
+      blobUrls.push(url);
+      const v = el("video", { src: url, autoplay: "", loop: "", muted: "", playsinline: "" });
+      v.muted = true;
+      frame.innerHTML = ""; frame.append(v);
+    }).catch(() => { frame.innerHTML = ""; frame.append(el("span.sub", { text: "영상을 합치는 중이에요…" })); });
+    return el("div.record-video", { dataset: { recId: r.id } }, [frame, dl]);
   }
 
   function buildThumbStrip(clips, id, emptyText, seq) {

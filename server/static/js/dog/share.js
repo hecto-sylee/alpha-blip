@@ -1,11 +1,21 @@
-// dog/share.js — 강아지 이미지 공유(SVG → canvas → PNG).
+// dog/share.js — 강아지 이미지 공유(스프라이트 레이어 → canvas → PNG).
 // Web Share API(files)로 공유하고, 미지원이면 다운로드 폴백.
+// 직렬화 SVG는 외부 이미지(href)를 로드하지 못해 캔버스가 비므로, 레이어 PNG를
+// 캔버스에 직접 그린다(dogLayers). 에셋은 동일 출처라 캔버스 오염(taint) 없음.
 
-import { dogSVG } from "./render.js";
+import { dogLayers } from "./render.js";
+
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
 
 // 외형 → 공유용 PNG Blob(파스텔 카드 + 이름 + LetsPaw 워터마크)
 export async function makeDogPng(appearance, { name = "우리 강아지", size = 512 } = {}) {
-  const svg = dogSVG({ ...appearance }, { pose: "front", size, anim: false });
   const W = size, H = size + 120;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
@@ -18,10 +28,14 @@ export async function makeDogPng(appearance, { name = "우리 강아지", size =
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  const dataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
-  const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
-  ctx.drawImage(img, W * 0.1, 24, W * 0.8, W * 0.8);
+  // 레이어(베이스 강아지 + 장착 악세)를 같은 박스에 차례로 합성
+  const dx = W * 0.1, dy = 24, dw = W * 0.8, dh = W * 0.8;
+  for (const src of dogLayers(appearance, "front")) {
+    try {
+      const img = await loadImg(src);
+      ctx.drawImage(img, dx, dy, dw, dh);
+    } catch (_) { /* 누락 레이어는 건너뜀 */ }
+  }
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#5A463E";

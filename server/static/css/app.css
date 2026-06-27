@@ -1255,6 +1255,45 @@ h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; 
 .cap-foot { padding: 0 16px 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .rec-media { margin: 4px 0; }
 .rec-media video { width: 100%; border: 2px solid var(--on-surface); background: #000; display: block; }
+
+/* W4/W5/W6 컴포넌트 픽셀 각짐 마무리 */
+.record-pill, .record-toggle, .record-toggle-opt, .record-thumb, .record-dl-btn,
+.cam-quest, .cam-close, .petdiary-card, .pd-card { border-radius: 0 !important; }
+.record-pill, .record-toggle-opt { border: 2px solid var(--on-surface); }
+.record-dl-btn { width: 100%; }
+.record-thumb video, .record-thumb img { image-rendering: auto; }
+
+/* 기록 영상: 합성 가로(16:9) 영상 크게 + 우상단 작은 다운로드 아이콘 */
+.record-video { position: relative; margin: 8px 0; }
+.record-video-frame { aspect-ratio: 16 / 9; width: 100%; background: #1A1410; border: 2px solid var(--on-surface);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--ambient); }
+.record-video-frame video { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
+.record-video-loading { color: #fff; opacity: .55; }
+.record-video-dl { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; line-height: 1; font-family: var(--font-head); font-weight: 400;
+  background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); cursor: pointer; box-shadow: 2px 2px 0 var(--surface-shadow); }
+.record-video-dl:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ---------------- Quest page (LP-12, 지도 없는 퀘스트 스택 + 산책 종료) ---------------- */
+.quest-page { padding-bottom: 112px; }
+.quest-context { display: flex; align-items: center; gap: 8px; color: var(--on-surface-var); font-size: .85rem; }
+.quest-stack { display: flex; flex-direction: column; gap: 10px; }
+.quest-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border: 2px solid var(--on-surface); box-shadow: var(--ambient); }
+.quest-card.done { opacity: .55; }
+.quest-card-body { flex: 1; min-width: 0; }
+.quest-card-title { font-family: var(--font-head); font-size: .95rem; }
+.quest-card-hint { font-size: .75rem; color: var(--on-surface-var); margin-top: 2px; }
+.quest-shoot { flex: none; }
+.quest-free { width: 100%; margin-top: 2px; }
+.quest-done { color: var(--success-shadow); font-size: .8rem; display: inline-flex; align-items: center; gap: 4px; }
+.end-dock { position: fixed; left: 0; right: 0; bottom: 0; max-width: var(--maxw); margin: 0 auto; padding: 10px 0 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; background: linear-gradient(transparent, var(--bg) 40%); z-index: 30; }
+.end-call { width: 60px; height: 60px; border: 2px solid var(--on-surface); background: var(--danger); color: #fff;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 0 var(--danger-shadow); }
+.end-call:active { transform: translateY(4px); box-shadow: none; }
+.end-call .ic { width: 26px; height: 26px; }
+.end-label { font-size: .75rem; color: var(--on-surface-var); }
+
 /* === W6: pet-diary === */
 /* 펫일기 작성/상세/표시카드. 디자인 시스템(입체 칩/세그/버튼) 위에 화면 전용 셰이프만 추가.
    외곽선 금지 — 분리는 면색+하단 솔리드 그림자(입체)로만. 인라인 스타일 금지. */

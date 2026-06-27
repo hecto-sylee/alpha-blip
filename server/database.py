@@ -58,6 +58,8 @@ def _ensure_dev_schema() -> None:
         ("users", "is_kakao", f"BOOLEAN DEFAULT {false_lit} NOT NULL"),
         ("pets", "appearance_json", "TEXT"),
         ("records", "merged_path", "VARCHAR"),
+        ("match_sessions", "a_met", f"BOOLEAN DEFAULT {false_lit} NOT NULL"),
+        ("match_sessions", "b_met", f"BOOLEAN DEFAULT {false_lit} NOT NULL"),
     ]
 
     for table, column, ddl in additions:

@@ -61,15 +61,14 @@ with sync_playwright() as p:
     pg.fill("#login-id", LID); pg.click("#login-cta")
     pg.wait_for_timeout(1500)
     pg.goto("http://localhost:8000/#/diary", wait_until="networkidle")
-    pg.wait_for_selector(".card", timeout=8000)
-    pg.wait_for_timeout(1500)
-    cards = pg.eval_on_selector_all(".card", "els => els.length")
-    has_dl = pg.eval_on_selector_all("button", "els => els.some(b => b.textContent.includes('다운로드'))")
-    has_video = bool(pg.query_selector(".rec-media video"))
-    print("diary cards:", cards, "download btn:", has_dl, "inline video:", has_video)
+    pg.wait_for_selector(".record-tab", timeout=8000)
+    pg.wait_for_timeout(2500)
+    has_video = bool(pg.query_selector(".record-video-frame video"))
+    has_dl = bool(pg.query_selector(".record-video-dl"))
+    print("landscape video:", has_video, "download icon:", has_dl)
     pg.screenshot(path="/tmp/diary_check.png", full_page=True)
     b.close()
 print("errors:", errors)
-assert cards >= 1 and has_dl, "diary did not render record + download"
+assert has_dl, "record video download icon missing"
 assert not errors, errors
 print("DIARY OK")

@@ -121,6 +121,28 @@ def cancel(request_id: str, user: User = Depends(get_current_user), db: Session 
     return {"ok": True}
 
 
+def _session_res(session: MatchSession, user: User, db: Session) -> MatchSessionRes:
+    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
+    partner_pet_id = session.pet_b_id if user.id == session.user_a_id else session.pet_a_id
+    partner = db.get(User, partner_id)
+    pet = db.get(Pet, partner_pet_id) if partner_pet_id else None
+    i_met = session.a_met if user.id == session.user_a_id else session.b_met
+    return MatchSessionRes(
+        id=session.id,
+        status=session.status,
+        partner={
+            "nickname": partner.nickname if partner else None,
+            "pet": {
+                "id": pet.id, "name": pet.name, "breed": pet.breed, "size": pet.size,
+                "personality_tags": loads_list(pet.personality_tags),
+            } if pet else None,
+        },
+        started_at=session.started_at,
+        a_met=session.a_met, b_met=session.b_met,
+        both_met=bool(session.a_met and session.b_met), i_met=bool(i_met),
+    )
+
+
 @router.get("/match-sessions/{session_id}", response_model=MatchSessionRes)
 def get_session(session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MatchSessionRes:
     session = db.get(MatchSession, session_id)
@@ -128,27 +150,32 @@ def get_session(session_id: str, user: User = Depends(get_current_user), db: Ses
         raise HTTPException(status_code=404, detail="session not found")
     if user.id not in (session.user_a_id, session.user_b_id):
         raise HTTPException(status_code=403, detail="not a participant")
+    return _session_res(session, user, db)
+
+
+@router.post("/match-sessions/{session_id}/met", response_model=MatchSessionRes)
+def mark_met(session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MatchSessionRes:
+    """만남 게이트: 내 met 표시. 양쪽 met이면 status=walking. (데모 mock 상대는 자동 met)"""
+    session = db.get(MatchSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if user.id not in (session.user_a_id, session.user_b_id):
+        raise HTTPException(status_code=403, detail="not a participant")
+    if user.id == session.user_a_id:
+        session.a_met = True
+    else:
+        session.b_met = True
     partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
-    partner_pet_id = session.pet_b_id if user.id == session.user_a_id else session.pet_a_id
     partner = db.get(User, partner_id)
-    pet = db.get(Pet, partner_pet_id) if partner_pet_id else None
-    return MatchSessionRes(
-        id=session.id,
-        status=session.status,
-        partner={
-            "nickname": partner.nickname if partner else None,
-            "pet": {
-                "id": pet.id,
-                "name": pet.name,
-                "breed": pet.breed,
-                "size": pet.size,
-                "personality_tags": loads_list(pet.personality_tags),
-            }
-            if pet
-            else None,
-        },
-        started_at=session.started_at,
-    )
+    if partner and partner.is_mock:  # 데모 mock 상대는 즉시 만남 확정
+        if partner_id == session.user_a_id:
+            session.a_met = True
+        else:
+            session.b_met = True
+    if session.a_met and session.b_met and session.status == "active":
+        session.status = "walking"
+    db.commit()
+    return _session_res(session, user, db)
 
 
 @router.get("/match-sessions/{session_id}/records", response_model=MatchSessionRecordsRes)

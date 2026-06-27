@@ -12,30 +12,16 @@ from .models import Pet, QuestMission, QuestTemplate, User, WalkSession, utcnow
 # is_mock=False 라서 (1) 모든 사용자의 nearby에 보이고 (2) 매칭 요청 시 자동수락되지
 # 않는다(망고만 is_mock=True 라 즉시 자동수락). 토큰으로 idempotent 하게 식별한다.
 DEMO_DUMMY_PREFIX = "demo-dummy:"
-# 견종 다양성을 보여주는 큐레이션 더미들(시연용). breed가 픽셀 외형을 결정하고,
-# 일부는 appearance.equipped로 옷을 입혀 꾸미기 기능을 미리 보여준다.
+# 시연용 큐레이션 더미. PoC 테스트라 지도가 붐비지 않게 1~2마리만 둔다(나머지 과거
+# 더미는 _ensure_demo_dummies가 자동으로 숨긴다). breed가 픽셀 외형을 결정하고,
+# 하나는 appearance.equipped로 옷을 입혀 꾸미기 기능을 미리 보여준다.
 DEMO_DUMMIES = [
-    {"token": DEMO_DUMMY_PREFIX + "choco", "nickname": "한강 초코", "pet_name": "초코", "breed": "푸들",
-     "size": "small", "tags": ["온순함", "낯가림 없음"], "sociality": 4, "activity_level": 3,
-     "walk_style": "sniff", "lat": 37.5006, "lng": 127.0406, "appearance": {"equipped": ["bandana"]}},
     {"token": DEMO_DUMMY_PREFIX + "kong", "nickname": "테헤란 콩", "pet_name": "콩", "breed": "말티즈",
      "size": "small", "tags": ["활발함", "공놀이 좋아함"], "sociality": 5, "activity_level": 4,
      "walk_style": "active", "lat": 37.5014, "lng": 127.0402},
     {"token": DEMO_DUMMY_PREFIX + "mochi", "nickname": "역삼 모찌", "pet_name": "모찌", "breed": "시바견",
      "size": "medium", "tags": ["호기심", "마이웨이"], "sociality": 3, "activity_level": 4,
      "walk_style": "normal", "lat": 37.5012, "lng": 127.0411, "appearance": {"equipped": ["bowtie"]}},
-    {"token": DEMO_DUMMY_PREFIX + "bori", "nickname": "선릉 보리", "pet_name": "보리", "breed": "웰시코기",
-     "size": "medium", "tags": ["활발함", "먹보"], "sociality": 5, "activity_level": 5,
-     "walk_style": "active", "lat": 37.5001, "lng": 127.0392},
-    {"token": DEMO_DUMMY_PREFIX + "happy", "nickname": "테헤란 해피", "pet_name": "해피", "breed": "골든리트리버",
-     "size": "large", "tags": ["온순함", "사람 좋아함"], "sociality": 5, "activity_level": 3,
-     "walk_style": "sniff", "lat": 37.5018, "lng": 127.0399, "appearance": {"equipped": ["scarf"]}},
-    {"token": DEMO_DUMMY_PREFIX + "latte", "nickname": "강남 라떼", "pet_name": "라떼", "breed": "닥스훈트",
-     "size": "small", "tags": ["겁많음", "낯가림"], "sociality": 2, "activity_level": 3,
-     "walk_style": "slow", "lat": 37.4999, "lng": 127.0405},
-    {"token": DEMO_DUMMY_PREFIX + "cloud", "nickname": "포스코 구름", "pet_name": "구름", "breed": "비숑",
-     "size": "small", "tags": ["활발함", "장난꾸러기"], "sociality": 4, "activity_level": 4,
-     "walk_style": "active", "lat": 37.5009, "lng": 127.0414, "appearance": {"equipped": ["cap"]}},
 ]
 
 QUESTS = [
@@ -231,6 +217,22 @@ def _ensure_demo_dummies(db: Session) -> None:
         ws.lng = d["lng"]
         ws.location_updated_at = utcnow()
         ws.is_location_visible = True
+
+    # 목록에서 빠진 과거 더미는 지도에서 숨긴다(활성 세션 종료). 붐빔 방지 — 데이터는 보존,
+    # 완전 삭제는 demo 리셋이 담당. 서버 재시작만으로 1~2마리만 남게 된다.
+    keep = [d["token"] for d in DEMO_DUMMIES]
+    stale = (
+        db.query(User)
+        .filter(User.auth_token.like(DEMO_DUMMY_PREFIX + "%"), User.auth_token.notin_(keep))
+        .all()
+    )
+    for u in stale:
+        for ws in db.query(WalkSession).filter(
+            WalkSession.user_id == u.id, WalkSession.status == "active"
+        ):
+            ws.status = "closed"
+            ws.ended_at = ws.ended_at or utcnow()
+            ws.is_location_visible = False
     db.commit()
 
 

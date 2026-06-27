@@ -131,6 +131,8 @@ class MatchSession(Base):
     pet_a_id: Mapped[str | None] = mapped_column(ForeignKey("pets.id"), nullable=True)
     pet_b_id: Mapped[str | None] = mapped_column(ForeignKey("pets.id"), nullable=True)
     status: Mapped[str] = mapped_column(String, default="active", index=True)
+    a_met: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)  # 만남 게이트
+    b_met: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

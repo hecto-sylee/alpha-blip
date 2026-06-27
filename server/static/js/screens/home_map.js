@@ -17,18 +17,23 @@ import * as poll from "../polling.js";
 import { getOnce, watch, fmtDistance } from "../geo.js";
 import { petCharacterEl } from "../character.js";
 
-// idle 홈은 산책중보다 더 가깝게(축척 확대) — 내 주변 강아지가 잘 보이도록.
-const HOME_ZOOM = 16.5;
+// idle 홈은 더 가깝게(축척 확대) — 건물이 덜 빽빽하고 내 주변이 잘 보이도록.
+const HOME_ZOOM = 17.3;
 const NEARBY_RADIUS = 1000;
 
+// 밝고 단순한 파스텔 톤 타일(CARTO Positron) — OSM 기본은 건물·색이 빽빽해 눈이 아픔.
 const OSM_STYLE = {
   version: 8,
   sources: {
     osm: {
       type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [
+        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+      ],
       tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
+      attribution: "© OpenStreetMap © CARTO",
     },
   },
   layers: [{ id: "osm", type: "raster", source: "osm" }],

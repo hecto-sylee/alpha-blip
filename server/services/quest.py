@@ -73,8 +73,8 @@ def select(db: Session, scope: str, scope_id: str, template_id: str, quest_date:
 
     existing = get_daily(db, scope, scope_id, quest_date)
     if existing is not None:
-        # room scope: subsequent members share the already-selected quest.
-        if scope == "room":
+        # room/match scope: 같은 세션의 두 사람이 동일 퀘스트를 공유한다.
+        if scope in ("room", "match"):
             return existing
         raise HTTPException(status_code=409, detail="quest already selected for the day")
 

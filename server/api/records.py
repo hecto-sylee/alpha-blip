@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import merge as merge_svc
 from ..database import SessionLocal
 from ..deps import get_current_user, get_db
-from ..models import Clip, DailyQuest, Reaction, Record, User
+from ..models import Clip, DailyQuest, MatchSession, Reaction, Record, User
 from ..schemas import (
     ClipOut,
     ReactionAgg,
@@ -77,13 +77,58 @@ UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 MERGED_DIR = os.path.join(UPLOADS_DIR, "merged")
 
 
+def _build_dual(db: Session, session: MatchSession, out: str) -> bool:
+    """매칭 세션 두 유저 클립을 퀘스트별로 vstack(상=user_a/하=user_b). 파트너 칸이 전혀 없으면 False(단일 폴백)."""
+    rec_ids = [r.id for r in db.query(Record).filter(Record.match_session_id == session.id).all()]
+    if not rec_ids:
+        return False
+    clips = (
+        db.query(Clip)
+        .filter(Clip.record_id.in_(rec_ids), Clip.status == "active")
+        .order_by(Clip.order.asc(), Clip.created_at.asc())
+        .all()
+    )
+    a_id = session.user_a_id
+    b_id = session.user_b_id
+    missions: list[str] = []
+    by_m: dict[str, dict] = {}
+    for c in clips:
+        key = c.mission_id or f"solo:{c.id}"
+        if key not in by_m:
+            by_m[key] = {"top": None, "bottom": None}
+            missions.append(key)
+        path = os.path.join(UPLOADS_DIR, f"{c.id}.webm")
+        if not os.path.exists(path):
+            continue
+        slot = "top" if c.user_id == a_id else "bottom" if c.user_id == b_id else None
+        if slot and not by_m[key][slot]:
+            by_m[key][slot] = path
+        elif not by_m[key]["top"]:
+            by_m[key]["top"] = path
+        elif not by_m[key]["bottom"]:
+            by_m[key]["bottom"] = path
+    scenes = [by_m[m] for m in missions]
+    if not any(s["top"] and s["bottom"] for s in scenes):
+        return False  # 상대 클립이 전혀 없음(데모 등) → 듀얼 의미 없으니 단일로
+    merge_svc.build_dual_video(scenes, out)
+    return True
+
+
 def _merge_record_task(record_id: str) -> None:
-    """BackgroundTask: 기록의 클립들을 순서대로 1개 mp4로 합성하고 merged_path를 기록한다."""
+    """BackgroundTask: 기록 클립들을 1개 mp4로 합성. 매칭=듀얼 vstack, 솔로=단일 concat."""
     db = SessionLocal()
     try:
         rec = db.get(Record, record_id)
         if rec is None:
             return
+        out = os.path.join(MERGED_DIR, f"{record_id}.mp4")
+        # 매칭(듀얼): 두 유저 클립을 퀘스트별 vstack. 파트너 클립 없으면 단일 폴백.
+        if rec.match_session_id:
+            session = db.get(MatchSession, rec.match_session_id)
+            if session is not None and _build_dual(db, session, out):
+                rec.merged_path = os.path.relpath(out, UPLOADS_DIR)
+                db.commit()
+                return
         clips = (
             db.query(Clip)
             .filter(Clip.record_id == record_id, Clip.status == "active")
@@ -94,7 +139,6 @@ def _merge_record_task(record_id: str) -> None:
         paths = [p for p in paths if os.path.exists(p)]
         if not paths:
             return
-        out = os.path.join(MERGED_DIR, f"{record_id}.mp4")
         merge_svc.build_record_video(paths, out)
         rec.merged_path = os.path.relpath(out, UPLOADS_DIR)  # "merged/{id}.mp4"
         db.commit()
@@ -164,7 +208,9 @@ def create_record(
         streak=ach_svc.compute_progress(db, user.id)["streak"],
         when=body.walked_at,
     )
-    points_awarded = points_svc.award_for_record(db, user, quest_certified=daily_quest_id is not None)
+    points_awarded = points_svc.award_for_record(
+        db, user, clip_count=len(body.clip_ids), is_match=body.match_session_id is not None
+    )
     db.commit()
     if body.clip_ids:  # 클립이 있으면 백그라운드로 1개 영상 합성
         background_tasks.add_task(_merge_record_task, rec.id)

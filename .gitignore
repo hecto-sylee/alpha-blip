@@ -234,3 +234,9 @@ scripts/.fe_shots*/
 # snapchal prototype runtime artifacts
 preview/snapchal/server/snapchal.db
 preview/snapchal/server/uploads/
+
+# agent worktrees (do not track)
+.claude/worktrees/
+
+# raw design-app deliverable (used assets already under server/static/img/dogs)
+docs/Dog asset spec 요청/

@@ -229,6 +229,10 @@ class MatchSessionRes(BaseModel):
     status: str
     partner: dict
     started_at: datetime
+    a_met: bool = False
+    b_met: bool = False
+    both_met: bool = False
+    i_met: bool = False  # 요청자(나) 기준 met 여부
 
 
 class MatchEndReq(BaseModel):
