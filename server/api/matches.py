@@ -5,15 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
-from ..models import MatchLog, MatchRequest, MatchSession, Pet, User
+from ..models import Clip, MatchLog, MatchRequest, MatchSession, Pet, Record, User
 from ..schemas import (
     AcceptRes,
+    ClipOut,
     IncomingRequest,
     IncomingRes,
     MatchEndReq,
     MatchEndRes,
+    MatchRecordOut,
     MatchRequestReq,
     MatchRequestRes,
+    MatchSessionRecordsRes,
     MatchSessionRes,
 )
 from ..services import achievements as ach_svc
@@ -146,6 +149,58 @@ def get_session(session_id: str, user: User = Depends(get_current_user), db: Ses
         },
         started_at=session.started_at,
     )
+
+
+@router.get("/match-sessions/{session_id}/records", response_model=MatchSessionRecordsRes)
+def get_session_records(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MatchSessionRecordsRes:
+    """매칭 산책 양측의 기록 영상 조회 (W5). 참여자 전용.
+    세션에 연결된 Record 를 user 별로 분리해 각 active 클립을 직렬화한다."""
+    session = db.get(MatchSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if user.id not in (session.user_a_id, session.user_b_id):
+        raise HTTPException(status_code=403, detail="not a participant")
+    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
+
+    def records_for(uid: str) -> list[MatchRecordOut]:
+        recs = (
+            db.query(Record)
+            .filter(Record.match_session_id == session_id, Record.user_id == uid)
+            .order_by(Record.created_at)
+            .all()
+        )
+        out: list[MatchRecordOut] = []
+        for rec in recs:
+            clips = (
+                db.query(Clip)
+                .filter(Clip.record_id == rec.id, Clip.status == "active")
+                .order_by(Clip.order)
+                .all()
+            )
+            out.append(
+                MatchRecordOut(
+                    record_id=rec.id,
+                    walked_at=rec.walked_at,
+                    clips=[
+                        ClipOut(
+                            id=c.id,
+                            stream_url=f"/api/clips/{c.id}/stream",
+                            duration_ms=c.duration_ms,
+                            order=c.order,
+                            mission_id=c.mission_id,
+                            status=c.status,
+                        )
+                        for c in clips
+                    ],
+                )
+            )
+        return out
+
+    return MatchSessionRecordsRes(mine=records_for(user.id), partner=records_for(partner_id))
 
 
 @router.post("/match-sessions/{session_id}/end", response_model=MatchEndRes)

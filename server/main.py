@@ -19,6 +19,7 @@ from .api import (
     leagues,
     matches,
     nearby,
+    pet_diary,
     pets,
     privacy,
     quests,
@@ -76,7 +77,7 @@ async def validation_exc_handler(request: Request, exc: RequestValidationError):
 
 
 # API routers (prefix /api)
-for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, shop):
+for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop):
     app.include_router(r.router, prefix="/api")
 
 # Static assets

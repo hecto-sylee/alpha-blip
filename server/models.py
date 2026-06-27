@@ -345,6 +345,23 @@ class LeagueState(Base):
     last_rollover_week: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+# ---------------------------------------------------------------------------
+# W6 — pet diary (펫일기): standalone per (user, date, pet). 신규 테이블이므로
+# create_all 로 자동 생성된다(기존 walk.db에 ALTER 불필요).
+# ---------------------------------------------------------------------------
+class PetDiary(Base):
+    __tablename__ = "pet_diaries"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    pet_id: Mapped[str | None] = mapped_column(ForeignKey("pets.id"), nullable=True)
+    diary_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    mood: Mapped[str] = mapped_column(String, nullable=False)  # happy|good|soso|sad|angry
+    activity_tags: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
 

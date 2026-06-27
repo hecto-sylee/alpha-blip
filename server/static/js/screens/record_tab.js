@@ -1,61 +1,263 @@
-// screens/record_tab.js — 기록 탭 (W5, 라우트 #/diary). 기록 목록 + 합성영상 재생/다운로드.
+// screens/record_tab.js — 기록 탭 재설계 (담당: W5, 라우트 #/diary)
+// 손그림 이미지3·4: 상단 둥근 [기록] 칩 → 캘린더/공유 토글, 선택 날짜의 내 기록영상 +
+// (매칭이면 신규 API로) 상대 기록영상 썸네일, 하단 펫일기 섹션(W6 petDiaryCard),
+// 좌우 스와이프로 날짜 이동(영상+펫일기 동시 갱신). 방 버튼/공유옵션 없음.
 import { api } from "../api.js";
-import { el, mount, toast, setTab, loading, icon } from "../ui.js";
+import { el, mount, setTab, icon, toast, centerModal, onLeave } from "../ui.js";
 import { navigate } from "../router.js";
+import { petDiaryCard } from "./pet_diary.js";
 
-export async function recordTabScreen(_p, query = {}) {
-  setTab("diary");
-  loading();
-  let records = [];
-  try { records = (await api.get("/records")).records || []; }
-  catch (e) { toast(e.message || "기록을 불러오지 못했어요", "err"); }
-  records.sort((a, b) => (String(b.walked_at) > String(a.walked_at) ? 1 : -1));
-
-  if (!records.length) {
-    mount(el("div.stack.center", {}, [
-      el("div.emoji-xl", {}, [icon("paw-print")]),
-      el("h1.h1", { text: "아직 기록이 없어요" }),
-      el("p.sub", { text: "산책하고 2초 클립을 찍어 첫 기록을 만들어요." }),
-      el("button.cta", { text: "산책하러 가기", onclick: () => navigate("/home") }),
-    ]));
-    return;
-  }
-
-  const cards = records.map(recordCard);
-  mount(el("div.stack", {}, [el("h1.h1", { text: "기록" }), ...cards]));
+// ── 날짜 헬퍼 (로컬 기준 ymd) ──────────────────────────────────────
+function ymd(d) {
+  const z = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+function todayStr() { return ymd(new Date()); }
+function parseYmd(s) {
+  const [y, m, d] = String(s).split("-").map(Number);
+  return new Date(y || 1970, (m || 1) - 1, d || 1);
+}
+function shiftYmd(s, delta) {
+  const d = parseYmd(s);
+  d.setDate(d.getDate() + delta);
+  return ymd(d);
+}
+function isYmd(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")); }
+function formatDateKo(s) {
+  const [y, m, dd] = String(s || "").split("-").map(Number);
+  if (!y) return String(s || "");
+  return `${y}년 ${m}월 ${dd}일`;
 }
 
-function recordCard(rec) {
-  const clipN = (rec.clips || []).length;
-  const media = el("div.rec-media");
-  const dl = clipN ? el("button.btn", { text: "⬇️ 영상 다운로드" }) : null;
-  if (dl) dl.addEventListener("click", async () => {
-    dl.disabled = true; const t = dl.textContent; dl.textContent = "준비 중…";
-    try {
-      await api.download(`/records/${rec.id}/video/download`, `letspaw_${rec.walked_at || "walk"}.mp4`);
-      toast("영상을 저장했어요", "ok", "film");
-    } catch (e) {
-      toast(e.status === 409 ? "영상을 합치는 중이에요. 잠시 후 다시 시도해 주세요" : (e.message || "다운로드 실패"), "err");
-    } finally { dl.disabled = false; dl.textContent = t; }
+export async function recordTabScreen(_p, query) {
+  setTab("diary");
+  const state = { date: query && isYmd(query.date) ? query.date : todayStr() };
+
+  // 인증 Blob video URL 추적 → 화면 떠날 때/재조회 시 해제 (메모리 누수 방지)
+  let blobUrls = [];
+  const revokeUrls = () => {
+    blobUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (_) {} });
+    blobUrls = [];
+  };
+  onLeave(revokeUrls);
+
+  let renderSeq = 0;
+
+  // ── 상단 바: 둥근 [기록] 칩 → 캘린더/공유 토글 ──────────────────
+  const pill = el("button.record-pill", {
+    type: "button", id: "record-pill", "aria-expanded": "false", "aria-label": "기록 메뉴",
+  }, [icon("notebook"), el("span", { text: "기록" }), icon("chevron-down", { cls: "record-pill-caret" })]);
+
+  const calOpt = el("button.record-toggle-opt", {
+    type: "button", dataset: { toggle: "calendar" },
+  }, [icon("calendar"), el("span", { text: "캘린더" })]);
+  const shareOpt = el("button.record-toggle-opt.is-disabled", {
+    type: "button", dataset: { toggle: "share" }, disabled: true, "aria-disabled": "true",
+  }, [icon("share-2"), el("span", { text: "공유" })]);
+  const toggle = el("div.record-toggle.hidden", { id: "record-toggle", role: "menu" }, [calOpt, shareOpt]);
+
+  const dateLabel = el("span.record-date", { id: "record-date", text: formatDateKo(state.date) });
+
+  const closeToggle = () => { toggle.classList.add("hidden"); pill.setAttribute("aria-expanded", "false"); };
+  pill.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opened = !toggle.classList.toggle("hidden");
+    pill.setAttribute("aria-expanded", String(opened));
+  });
+  calOpt.addEventListener("click", () => { closeToggle(); openCalendar(); });
+  // 공유는 비활성(자리만) — 클릭해도 "준비 중" 토스트만.
+  shareOpt.addEventListener("click", () => toast("공유는 준비 중이에요", "", "construction"));
+
+  const onDocClick = (e) => {
+    if (toggle.classList.contains("hidden")) return;
+    if (toggle.contains(e.target) || pill.contains(e.target)) return;
+    closeToggle();
+  };
+  document.addEventListener("click", onDocClick);
+  onLeave(() => document.removeEventListener("click", onDocClick));
+
+  const topbar = el("div.row.record-topbar", {}, [
+    el("div.record-pill-wrap", {}, [pill, toggle]),
+    el("span.spacer"),
+    dateLabel,
+  ]);
+
+  const body = el("div.stack.record-body", { id: "record-body" });
+  const root = el("div.stack.record-tab", { id: "record-tab" }, [topbar, body]);
+
+  // ── 좌우 스와이프(포인터/터치 공용) → 날짜 ±1일 ────────────────
+  // 왼쪽으로 밀면 다음 날, 오른쪽으로 밀면 이전 날. 가로 우세 + 임계값 50px.
+  let px = null, py = null;
+  root.addEventListener("pointerdown", (e) => { px = e.clientX; py = e.clientY; });
+  root.addEventListener("pointerup", (e) => {
+    if (px == null) return;
+    const dx = e.clientX - px, dy = e.clientY - py;
+    px = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return;
+    goToDate(shiftYmd(state.date, dx < 0 ? 1 : -1));
   });
 
-  // 합성 영상이 준비되면 인라인 재생(다운로드 엔드포인트를 blob으로)
-  if (rec.merged_ready) {
-    api.blobUrl(`/records/${rec.id}/video/download`).then((url) => {
-      const v = el("video", { src: url, controls: "", playsinline: "", loop: "", muted: "" });
-      v.muted = true; media.innerHTML = ""; media.append(v);
-    }).catch(() => { media.append(el("span.sub", { text: `${clipN}컷 · 합성 대기 중` })); });
-  } else if (clipN) {
-    media.append(el("span.sub", { text: `${clipN}컷 · 영상 합치는 중…` }));
+  mount(root);
+  await renderBody();
+
+  // ── 날짜 변경 → 영상 + 펫일기 동시 갱신 ────────────────────────
+  function goToDate(next) {
+    if (!next || next === state.date) return;
+    state.date = next;
+    renderBody();
   }
 
-  return el("div.card.stack.gap-sm", {}, [
-    el("div.row.between", {}, [
-      el("span.strong", { text: rec.walked_at || "산책 기록" }),
-      el("span.sub", { text: `${clipN}컷` }),
-    ]),
-    clipN ? media : null,
-    rec.text ? el("p.sub", { text: rec.text }) : null,
-    dl,
-  ].filter(Boolean));
+  async function renderBody() {
+    closeToggle();
+    const seq = ++renderSeq;
+    revokeUrls();
+    const date = state.date;
+    dateLabel.textContent = formatDateKo(date);
+    body.dataset.date = date;
+    body.innerHTML = "";
+
+    const videoSection = el("section.record-section.record-videos", { id: "record-videos", dataset: { date } }, [
+      el("h2.h2", { text: "내 기록 영상" }),
+      el("p.sub.record-loading", { text: "불러오는 중…" }),
+    ]);
+    const diarySection = el("section.record-section.record-diary", { id: "record-diary", dataset: { date } }, [
+      el("h2.h2", { text: "펫일기" }),
+      el("p.sub.record-loading", { text: "불러오는 중…" }),
+    ]);
+    body.append(videoSection, diarySection);
+
+    let records = [], diaries = [];
+    try {
+      const [recRes, diaryRes] = await Promise.all([
+        api.get(`/records?from=${date}&to=${date}`),
+        api.get(`/pet-diary?date=${date}`),
+      ]);
+      records = (recRes.records || []).filter((r) => r.visibility === "diary");
+      diaries = diaryRes.diaries || [];
+    } catch (e) {
+      if (seq === renderSeq) toast(e.message || "기록을 불러오지 못했어요", "err");
+    }
+    if (seq !== renderSeq) return;
+
+    await renderVideos(videoSection, records, seq);
+    if (seq !== renderSeq) return;
+    renderDiary(diarySection, diaries, date);
+  }
+
+  // ── 영상 기록 영역: 내 기록 + (매칭이면) 상대 기록 ──────────────
+  async function renderVideos(section, records, seq) {
+    section.innerHTML = "";
+    section.append(el("h2.h2", { text: "내 기록 영상" }));
+
+    const myClips = records.flatMap((r) => r.clips || []);
+    section.append(buildThumbStrip(myClips, "my-clips", "이 날의 기록 영상이 없어요.", seq));
+
+    // 매칭 여부: record 의 match_session_id 유무. 혼자 산책이면 상대 영역 숨김.
+    const sessionIds = [...new Set(records.filter((r) => r.match_session_id).map((r) => r.match_session_id))];
+    if (!sessionIds.length) return;
+
+    const partnerClips = [];
+    for (const sid of sessionIds) {
+      try {
+        const res = await api.get(`/match-sessions/${sid}/records`);
+        partnerClips.push(...(res.partner || []).flatMap((r) => r.clips || []));
+      } catch (_) {}
+    }
+    if (seq !== renderSeq) return;
+    if (!partnerClips.length) return; // 상대가 아직 안 찍었으면 영역 생략
+
+    section.append(el("h2.h2.record-partner-title", { text: "매칭 상대 기록 영상" }));
+    section.append(buildThumbStrip(partnerClips, "partner-clips", "상대의 기록 영상이 없어요.", seq));
+  }
+
+  function buildThumbStrip(clips, id, emptyText, seq) {
+    const strip = el("div.record-thumb-strip", { id });
+    if (!clips.length) {
+      strip.append(el("p.sub.record-empty", { text: emptyText }));
+      return strip;
+    }
+    for (const c of clips) {
+      const thumb = el("div.record-thumb", { dataset: { clipId: c.id } }, [
+        el("span.record-thumb-fallback", {}, [icon("film")]),
+      ]);
+      loadThumb(thumb, c, seq);
+      strip.append(thumb);
+    }
+    return strip;
+  }
+
+  async function loadThumb(thumb, clip, seq) {
+    try {
+      const url = await api.blobUrl(clip.stream_url.replace("/api", ""));
+      if (seq !== renderSeq) { try { URL.revokeObjectURL(url); } catch (_) {} return; }
+      blobUrls.push(url);
+      const v = el("video.record-thumb-video", { src: url, playsinline: "", muted: "", preload: "metadata" });
+      v.muted = true;
+      thumb.querySelector(".record-thumb-fallback")?.remove();
+      thumb.append(v);
+    } catch (_) { /* fallback 필름 아이콘 유지 */ }
+  }
+
+  // ── 펫일기 섹션: 없으면 빈 상태 + 작성 진입, 있으면 W6 카드 ──────
+  function renderDiary(section, diaries, date) {
+    section.innerHTML = "";
+    section.append(el("h2.h2", { text: "펫일기" }));
+    if (!diaries.length) {
+      section.append(el("div.empty.record-diary-empty", {}, [
+        el("p", { text: "일기가 없어요." }),
+        el("button.btn.secondary", {
+          type: "button", id: "diary-write",
+          onclick: () => navigate(`/pet-diary/new?date=${date}`),
+        }, [icon("plus"), el("span", { text: "펫일기 작성" })]),
+      ]));
+      return;
+    }
+    diaries.forEach((d) =>
+      section.append(petDiaryCard(d, { onClick: (dd) => navigate(`/pet-diary/${dd.id}`) }))
+    );
+  }
+
+  // ── 캘린더 팝업(centerModal): 날짜 점프 ────────────────────────
+  function openCalendar() {
+    let cur = parseYmd(state.date);
+    cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
+    centerModal((close) => {
+      const title = el("div.record-cal-title");
+      const grid = el("div.record-cal-grid");
+      const head = el("div.row.record-cal-head", {}, [
+        el("button.record-cal-nav", {
+          type: "button", "aria-label": "이전 달",
+          onclick: () => { cur.setMonth(cur.getMonth() - 1); paint(); },
+        }, [icon("chevron-left")]),
+        el("span.spacer"), title, el("span.spacer"),
+        el("button.record-cal-nav", {
+          type: "button", "aria-label": "다음 달",
+          onclick: () => { cur.setMonth(cur.getMonth() + 1); paint(); },
+        }, [icon("chevron-right")]),
+      ]);
+      const week = el("div.record-cal-grid.record-cal-week", {},
+        ["일", "월", "화", "수", "목", "금", "토"].map((w) => el("span.record-cal-dow", { text: w })));
+      const wrap = el("div.record-cal", {}, [el("h2.h2", { text: "날짜 선택" }), head, week, grid]);
+      paint();
+      return wrap;
+
+      function paint() {
+        const y = cur.getFullYear(), m = cur.getMonth();
+        title.textContent = `${y}년 ${m + 1}월`;
+        grid.innerHTML = "";
+        const startDow = new Date(y, m, 1).getDay();
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        for (let i = 0; i < startDow; i++) grid.append(el("span.record-cal-cell.is-empty"));
+        for (let d = 1; d <= daysInMonth; d++) {
+          const cellYmd = ymd(new Date(y, m, d));
+          let sel = "button.record-cal-cell";
+          if (cellYmd === todayStr()) sel += ".is-today";
+          if (cellYmd === state.date) sel += ".is-selected";
+          const cell = el(sel, { type: "button", dataset: { date: cellYmd }, text: String(d) });
+          cell.addEventListener("click", () => { close(); goToDate(cellYmd); });
+          grid.append(cell);
+        }
+      }
+    });
+  }
 }
