@@ -136,7 +136,9 @@ def _session_res(session: MatchSession, user: User, db: Session) -> MatchSession
             WalkSession.lat.isnot(None),
             WalkSession.lng.isnot(None),
         )
-        .order_by(WalkSession.started_at.desc())
+        # 실제 broadcast 중인 위치와 일치하도록 가장 최근 '위치 갱신' 세션을 고른다
+        # (started_at 기준이면 broadcast 중인 세션과 다른 옛 세션을 집을 수 있음).
+        .order_by(WalkSession.location_updated_at.desc())
         .first()
     )
     return MatchSessionRes(
@@ -152,6 +154,7 @@ def _session_res(session: MatchSession, user: User, db: Session) -> MatchSession
         started_at=session.started_at,
         a_met=session.a_met, b_met=session.b_met,
         both_met=bool(session.a_met and session.b_met), i_met=bool(i_met),
+        my_position="top" if user.id == session.user_a_id else "bottom",  # 합성: top=user_a/bottom=user_b
         partner_lat=pws.lat if pws else None,
         partner_lng=pws.lng if pws else None,
     )
@@ -236,6 +239,39 @@ def get_session_records(
         return out
 
     return MatchSessionRecordsRes(mine=records_for(user.id), partner=records_for(partner_id))
+
+
+@router.get("/match-sessions/{session_id}/progress")
+def get_session_progress(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """매칭 산책 '중' 양측이 어떤 미션을 촬영했는지(실시간). Record는 산책 종료 시에만
+    생기므로, 그 전에는 업로드된 Clip(record_id 무관)으로 진행현황을 본다.
+    이 세션 시작 이후 mission_id가 있는 active 클립의 mission_id 집합을 user별로 반환."""
+    session = db.get(MatchSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if user.id not in (session.user_a_id, session.user_b_id):
+        raise HTTPException(status_code=403, detail="not a participant")
+    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
+
+    def missions_for(uid: str) -> list[str]:
+        rows = (
+            db.query(Clip.mission_id)
+            .filter(
+                Clip.user_id == uid,
+                Clip.status == "active",
+                Clip.mission_id.isnot(None),
+                Clip.created_at >= session.started_at,
+            )
+            .all()
+        )
+        # 중복 제거(같은 미션 여러 컷 가능)하되 순서 무관 — set으로
+        return sorted({r[0] for r in rows})
+
+    return {"mine": missions_for(user.id), "partner": missions_for(partner_id)}
 
 
 @router.post("/match-sessions/{session_id}/end", response_model=MatchEndRes)

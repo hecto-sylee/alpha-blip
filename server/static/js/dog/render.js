@@ -11,8 +11,9 @@ import { BREED_KEYS } from "./params.js";
 
 const ASSET = "/static/img/dogs";
 
-// side/sit 스프라이트가 있는 견종(나머지는 front로 폴백). docs 스펙 Tier1~2.
-const POSE_FULL = new Set(["maltese", "shiba", "corgi", "golden", "poodle", "bichon", "dachshund", "mix"]);
+// side/sit 스프라이트가 있는 견종(나머지는 front로 폴백).
+// v4.1: 전 16견종 side/sit 에셋 추가 완료 → BREED_KEYS 전체.
+const POSE_FULL = new Set(BREED_KEYS);
 // 악세 키(파일 acc_{key}.png 와 1:1). accessories.js 카탈로그와 동일.
 const ACC_KEYS = new Set(["party_hat", "cap", "crown", "glasses", "sunglasses", "bandana", "bowtie", "scarf", "cape"]);
 
@@ -28,6 +29,14 @@ function dogFile(breed, pose) {
   const b = BREED_KEYS.includes(breed) ? breed : "mix";
   const p = (pose === "side" || pose === "sit") && !POSE_FULL.has(b) ? "front" : (pose || "front");
   return `${ASSET}/dog_${b}_${p}.png`;
+}
+
+// 이 견종이 해당 포즈 스프라이트를 실제로 갖고 있는지(없으면 front로 폴백되므로 UI에서 비활성).
+// front는 모든 견종 보유. side/sit는 POSE_FULL 견종만.
+export function poseAvailable(breed, pose) {
+  if (pose !== "side" && pose !== "sit") return true;
+  const b = BREED_KEYS.includes(breed) ? breed : "mix";
+  return POSE_FULL.has(b);
 }
 
 // 외형 → 레이어 URL 목록(베이스 강아지 + 장착 악세). 악세는 정면 캔버스 기준이라 front에만.

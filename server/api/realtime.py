@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 
 from ..database import SessionLocal
 from ..models import User, WalkSession, utcnow
-from .nearby import FRESH_MINUTES, compute_nearby
+from .nearby import FRESH_SECONDS, compute_nearby
 
 router = APIRouter(tags=["realtime"])
 
@@ -22,7 +22,7 @@ PUSH_INTERVAL = 2.0
 
 
 def _my_loc(db, user):
-    cutoff = utcnow() - timedelta(minutes=FRESH_MINUTES)
+    cutoff = utcnow() - timedelta(seconds=FRESH_SECONDS)
     ws = (
         db.query(WalkSession)
         .filter(
@@ -32,7 +32,7 @@ def _my_loc(db, user):
             WalkSession.location_updated_at.isnot(None),
             WalkSession.location_updated_at >= cutoff,
         )
-        .order_by(WalkSession.started_at.desc())
+        .order_by(WalkSession.location_updated_at.desc())
         .first()
     )
     return (ws.lat, ws.lng) if ws else (None, None)

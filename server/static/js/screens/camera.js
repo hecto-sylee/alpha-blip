@@ -20,6 +20,8 @@ export async function cameraScreen(_params, query = {}) {
   // 듀얼(매칭)=반쪽(720×640)으로 촬영 → 합성 시 상/하로 합쳐져 9:16. "반으로 찍고 결과도 반".
   // 솔로=세로 풀(720×1280).
   const dual = !!(query && query.dual === "1");
+  // 듀얼 합성 위치(top=요청자/bottom=수락자). 알면 프리뷰를 그 칸에 배치(중앙 아님).
+  const half = dual ? (query.half === "bottom" ? "bottom" : query.half === "top" ? "top" : null) : null;
   const OUT_W = 720, OUT_H = dual ? 640 : 1280;
   const state = { stream: null, recording: false, raf: 0 };
 
@@ -32,6 +34,12 @@ export async function cameraScreen(_params, query = {}) {
   const ctx = canvas.getContext("2d");
 
   const stage = el("div.cam-stage", { id: "cam-stage" }, [video, canvas]);
+  // 듀얼: 내 칸 반대쪽에 '상대 영상 자리' 플레이스홀더(합성될 모습 미리보기) + 분할선
+  const otherHalf = half
+    ? el("div.cam-otherhalf", {}, [
+        el("div.cam-otherhalf-inner", {}, [icon("user"), el("span", { text: "상대 영상 자리" })]),
+      ])
+    : null;
 
   // 매 프레임: 회전 없이 cover-fit 으로 캔버스에 그림(세로 9:16 출력)
   function drawFrame() {
@@ -58,7 +66,11 @@ export async function cameraScreen(_params, query = {}) {
   shootBtn.addEventListener("click", () => doRecord());
   const bottomBar = el("div.cam-bottom", {}, [shootBtn]);
 
-  const screenEl = el("div.camera-screen", { id: "camera-screen" }, [stage, topBar, bottomBar]);
+  const screenEl = el(
+    "div.camera-screen" + (half ? `.dual-half.half-${half}` : ""),
+    { id: "camera-screen" },
+    [stage, otherHalf, topBar, bottomBar].filter(Boolean)
+  );
 
   // ---- 카메라 초기화 ----
   async function initCamera() {

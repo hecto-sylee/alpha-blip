@@ -190,14 +190,35 @@ export async function recordTabScreen(_p, query) {
       }
     });
     const outer = el("div.record-video", { dataset: { recId: r.id } }, [frame, dl, del]);
+    // 합성은 백그라운드라 기록 직후엔 아직 안 끝나 있다(다운로드 409). 완료될 때까지
+    // 폴링 재시도 → 새로고침 없이 자동 반영. seq가 바뀌면(날짜 이동/이탈) 멈춘다.
+    loadRecordVideo(frame, r, seq, 0);
+    return outer;
+  }
+
+  function loadRecordVideo(frame, r, seq, attempt) {
+    if (seq !== renderSeq) return;
     api.blobUrl(`/records/${r.id}/video/download`).then((url) => {
       if (seq !== renderSeq) { try { URL.revokeObjectURL(url); } catch (_) {} return; }
       blobUrls.push(url);
       const v = el("video", { src: url, autoplay: "", loop: "", muted: "", playsinline: "" });
       v.muted = true;
       frame.innerHTML = ""; frame.append(v);
-    }).catch(() => { frame.innerHTML = ""; frame.append(el("span.sub", { text: "영상을 합치는 중이에요…" })); });
-    return outer;
+    }).catch((err) => {
+      if (seq !== renderSeq) return;
+      // 409=합성 중, 0=일시 네트워크 → 완료까지 재시도(최대 ~2.5분). 그 외엔 중단.
+      const retriable = !err || err.status === 409 || err.status === 0;
+      if (retriable && attempt < 60) {
+        frame.innerHTML = "";
+        frame.append(
+          el("span.record-video-loading", {}, [icon("film")]),
+          el("span.sub.record-video-merging", { text: "영상을 합치는 중이에요…" }),
+        );
+        setTimeout(() => loadRecordVideo(frame, r, seq, attempt + 1), 2500);
+      } else {
+        frame.innerHTML = ""; frame.append(el("span.sub", { text: "영상을 불러오지 못했어요" }));
+      }
+    });
   }
 
   function buildThumbStrip(clips, id, emptyText, seq) {
