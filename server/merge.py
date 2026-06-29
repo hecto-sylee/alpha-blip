@@ -25,7 +25,12 @@ def _run(args: list[str]) -> None:
 
 
 def _scale_clip(src: str, out: str) -> None:
-    vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS}"
+    # 안전망: 가로가 아니어도(세로/이상 비율) 잘라내지 않고 전체 프레임을 16:9 안에 담는다(패드).
+    # 가로(16:9) 입력은 패드 0이라 동일. 세로 클립이 와도 슬라이스 크롭 대신 레터박스로 보임.
+    vf = (
+        f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=#1A1410,setsar=1,fps={FPS}"
+    )
     _run(["-fflags", "+genpts", "-i", src, "-vf", vf, *ENC, out])
 
 
