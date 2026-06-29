@@ -12,9 +12,7 @@ const KEYS = {
 };
 
 const DEFAULT_SETTINGS = {
-  locationVisible: true,      // 위치 공유
-  approximate: true,          // 대략적 위치 표시
-  hideHome: false,            // 집 주변 비공개
+  locationVisible: true,      // 위치 공유(ON이면 지도에 실제 위치 노출)
   defaultVisibility: "diary", // 기록 기본 공개범위
 };
 

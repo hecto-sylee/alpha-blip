@@ -1,25 +1,21 @@
-// screens/matching.js — 산책 매칭중 + 발자국 트래킹 (담당: W3, 라우트 #/matching/:id)
+// screens/matching.js — 산책 매칭 만남 게이트 (담당: W3, 라우트 #/matching/:id)
 //
-// 흐름:
-//   진입 직후 GET /match-requests/:id 폴링(구 match.js requestWaitScreen 이식).
-//     · accepted + match_session_id → 세션 확보(상대 표시, [매칭 성공] 활성)
-//     · rejected/expired/cancelled  → 토스트 + #/home
-//   지도엔 본인(빨강) + 상대(강아지 캐릭터 핀) 둘만. nearby 폴링은 하지 않는다.
-//   발자국은 프론트 시뮬레이션: 폴링 틱마다 직전 위치에 paw-print 마커를 누적
-//   (최근 N개만 유지, 오래된 것은 옅게). 백엔드 변경 없음(D4).
-//   [매칭 성공] → store.clearWalkClips() → navigate(`/walk?match=<sid>`) 로 산책중에 인계.
-//
-// 데모 목업은 자동 수락(matches.py: receiver.is_mock 이면 create_request 에서 즉시 accept)
-// → 첫 폴링 틱에 바로 세션 단계로 들어간다.
+// 요청자·수락자 모두 이 화면으로 온다(통합). 흐름:
+//   GET /match-requests/:id 폴링 → accepted+session 이면 만남 단계로.
+//   수락 시점부터 양쪽의 '실제 위치'를 서로에게 표시:
+//     · 내 위치 = GPS watch(실시간) → 내 walk 세션에 broadcast(PATCH /walks/{id}/location)
+//     · 상대 위치 = GET /match-sessions/:id 의 partner_lat/lng 폴링
+//   (임의/핀 위치·시뮬레이션 이동 없음)
+//   [만났습니다] → 내 met 표시. 요청자·수락자 둘 다 누르면(both_met) → /walk?match=sid (퀘스트 페이지).
+//   [산책 종료] → 세션 종료 → 홈.
 import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, onLeave, icon, celebrate } from "../ui.js";
 import { navigate } from "../router.js";
 import * as poll from "../polling.js";
-import { getOnce } from "../geo.js";
+import { getOnce, watch } from "../geo.js";
 import { petCharacterEl } from "../character.js";
 
-// 밝고 단순한 파스텔 톤 타일(CARTO Positron) — 홈/산책과 통일.
 const OSM_STYLE = {
   version: 8,
   sources: {
@@ -37,25 +33,21 @@ const OSM_STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 
-const STATUS_POLL_MS = 2000; // 요청 상태 폴링 주기
-const FOOT_TICK_MS = 1200;   // 발자국/접근 시뮬 주기
-const FOOT_MAX = 24;         // 누적 발자국 최대(둘 합산) — 넘으면 오래된 것 제거
-
+const STATUS_POLL_MS = 2000;
+const LOC_POLL_MS = 2000;
+const FOOT_MAX = 24;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const lerp = (a, b, t) => ({ lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t });
 
 export async function matchingScreen(params) {
-  setTab(null); // 몰입 모드
+  setTab(null);
   const reqId = params.id; // = match_request_id
 
-  // 본인 펫(축하 모션/대비용). 실패해도 화면은 그린다.
   let myPet = null;
   try { myPet = (await api.get("/auth/me")).pets?.[0] || null; } catch (_) {}
 
-  // 시작 좌표: 데모면 데모 원점, 아니면 GPS 1회(헤드리스는 주입 좌표).
+  // 시작 좌표 = 실제 GPS(핀/데모 무시). 헤드리스/거부 시에만 폴백.
   const start = await resolveStart();
 
-  // --- DOM scaffold ---
   const statusText = el("span.strong", { id: "w3-status", text: "상대의 수락을 기다리는 중…" });
   const hintText = el("span", { id: "w3-hint-text", text: "요청을 보냈어요. 상대가 수락하면 함께 걸어요." });
   const cta = el("button.cta", { id: "w3-cta", text: "수락 대기 중…", disabled: true });
@@ -72,34 +64,29 @@ export async function matchingScreen(params) {
   const screen = el("div.map-screen", {}, [mapEl, fallback, top, bottom]);
   mount(screen);
 
-  // 매칭 지도도 한 화면을 꽉 채운다(홈/산책과 동일한 컨테이너 규약).
   document.getElementById("view")?.classList.add("walk-view");
   onLeave(() => document.getElementById("view")?.classList.remove("walk-view"));
 
-  // --- 화면 상태 ---
   const ctx = {
-    map: null,
-    fallback,
-    useFallback: false,
-    reqId,
-    sessionId: null,
-    proceeding: false,
-    myPet,
-    partnerPet: null,
+    map: null, fallback, useFallback: false,
+    reqId, sessionId: null, proceeding: false,
+    myPet, partnerPet: null,
     me: { ...start.me },
-    partner: null,                     // 세션 확보 후 현재 상대 좌표
-    partnerStart: start.partnerStart,  // 데모 고정 좌표(있으면)
-    demo: start.demo,
-    meEntity: null,
-    partnerEntity: null,
-    footprints: [],
-    fbBounds: null,
+    partner: null,
+    meEntity: null, partnerEntity: null,
+    footprints: [], fbBounds: null,
+    stopMine: null,
   };
 
   initMap(ctx, mapEl);
   placeMe(ctx);
 
-  // --- 요청 상태 폴링 (구 requestWaitScreen 로직 이식) ---
+  const stopAll = () => {
+    poll.stop("w3-match-status"); poll.stop("w3-loc"); poll.stop("w3-met");
+    if (ctx.stopMine) { ctx.stopMine(); ctx.stopMine = null; }
+  };
+
+  // --- 요청 상태 폴링 ---
   poll.start("w3-match-status", async () => {
     let r;
     try { r = await api.get(`/match-requests/${reqId}`); } catch { return; }
@@ -119,8 +106,8 @@ export async function matchingScreen(params) {
   function proceedToQuest() {
     if (ctx.proceeding) return;
     ctx.proceeding = true;
-    poll.stop("w3-match-status"); poll.stop("w3-footsteps"); poll.stop("w3-met");
-    store.clearWalkClips(); // 새 산책 클립 누적을 깨끗이 시작
+    stopAll();
+    store.clearWalkClips();
     try { celebrate(ctx.myPet); } catch (_) {}
     setTimeout(() => navigate(`/walk?match=${ctx.sessionId}`), 500);
   }
@@ -146,43 +133,26 @@ export async function matchingScreen(params) {
     }
   });
 
-  // --- [산책 종료] → 세션 종료 후 홈 ---
   endBtn.addEventListener("click", async () => {
     if (ctx.proceeding) return;
     endBtn.disabled = true;
     try { if (ctx.sessionId) await api.post(`/match-sessions/${ctx.sessionId}/end`, {}); } catch (_) {}
-    poll.stop("w3-match-status"); poll.stop("w3-footsteps"); poll.stop("w3-met");
+    stopAll();
     store.setWalkId(null);
     toast("산책을 종료했어요");
     navigate("/home");
   });
 
-  onLeave(() => {
-    poll.stop("w3-match-status");
-    poll.stop("w3-footsteps");
-    poll.stop("w3-met");
-  });
+  onLeave(stopAll);
 }
 
-// 시작 좌표/모드 결정.
+// 시작 좌표 = 실제 GPS. (핀/데모 무시 — 매칭 후엔 서로 실제 위치를 본다)
 async function resolveStart() {
-  const demo = store.demo;
-  if (demo && typeof demo.lat === "number" && typeof demo.lng === "number") {
-    return {
-      me: { lat: demo.lat, lng: demo.lng },
-      partnerStart:
-        typeof demo.mockLat === "number" && typeof demo.mockLng === "number"
-          ? { lat: demo.mockLat, lng: demo.mockLng }
-          : null,
-      demo: true,
-    };
-  }
   try {
     const pos = await getOnce();
-    return { me: { lat: pos.lat, lng: pos.lng }, partnerStart: null, demo: false };
+    return { me: { lat: pos.lat, lng: pos.lng } };
   } catch (_) {
-    // 헤드리스/권한 거부 — 데모 원점(큰길타워)으로 폴백해 화면은 그려준다.
-    return { me: { lat: 37.5009, lng: 127.0398 }, partnerStart: null, demo: false };
+    return { me: { lat: 37.5009, lng: 127.0398 } }; // 헤드리스/권한거부 폴백(화면만)
   }
 }
 
@@ -201,13 +171,10 @@ function initMap(ctx, mapEl) {
   }
   try {
     ctx.map = new maplibregl.Map({
-      container: mapEl,
-      style: OSM_STYLE,
-      center: [ctx.me.lng, ctx.me.lat],
-      zoom: 16,
-      attributionControl: true,
+      container: mapEl, style: OSM_STYLE,
+      center: [ctx.me.lng, ctx.me.lat], zoom: 16, attributionControl: true,
     });
-    ctx.map.on("error", () => {}); // 타일 에러는 흐름을 깨지 않음
+    ctx.map.on("error", () => {});
     ctx.map.on("load", () => { placeMe(ctx); if (ctx.partner) placePartner(ctx); });
   } catch (_) {
     ctx.useFallback = true;
@@ -215,36 +182,24 @@ function initMap(ctx, mapEl) {
   }
 }
 
-// 세션 확보: 상대 프로필 로드 → 상대 마커 + 발자국 시뮬 시작 + CTA 활성.
+// 세션 확보: 상대 프로필+실위치 로드 → 실시간 위치 동기화 시작 + CTA 활성.
 async function onAccepted(ctx, sessionId) {
   if (ctx.sessionId) return;
   ctx.sessionId = sessionId;
 
-  let partnerNick = "친구";
+  let partnerNick = "친구", s = null;
   try {
-    const s = await api.get(`/match-sessions/${sessionId}`);
+    s = await api.get(`/match-sessions/${sessionId}`);
     partnerNick = s.partner?.nickname || "친구";
     ctx.partnerPet = s.partner?.pet || null;
   } catch (_) {}
   if (!ctx.partnerPet) ctx.partnerPet = { name: partnerNick };
 
-  // 상대 시작 좌표: 데모 고정 좌표 또는 본인 북동쪽 ~200m.
-  ctx.partner = ctx.partnerStart
-    ? { ...ctx.partnerStart }
-    : { lat: ctx.me.lat + 0.0016, lng: ctx.me.lng + 0.0017 };
-
-  // 폴백 투영용 경계(본인+상대 시작점 + 여유).
-  const pad = 0.0008;
-  ctx.fbBounds = {
-    minLat: Math.min(ctx.me.lat, ctx.partner.lat) - pad,
-    maxLat: Math.max(ctx.me.lat, ctx.partner.lat) + pad,
-    minLng: Math.min(ctx.me.lng, ctx.partner.lng) - pad,
-    maxLng: Math.max(ctx.me.lng, ctx.partner.lng) + pad,
-  };
-
-  placeMe(ctx); // 폴백 좌표가 경계와 함께 다시 잡히도록 보강
-  placePartner(ctx);
-  fitBoth(ctx);
+  if (s && typeof s.partner_lat === "number" && typeof s.partner_lng === "number") {
+    ctx.partner = { lat: s.partner_lat, lng: s.partner_lng };
+    setBounds(ctx);
+    placeMe(ctx); placePartner(ctx); fitBoth(ctx);
+  }
 
   const st = document.getElementById("w3-status");
   if (st) st.textContent = `${partnerNick}님과 만나는 중…`;
@@ -255,23 +210,45 @@ async function onAccepted(ctx, sessionId) {
   const eb = document.getElementById("w3-end");
   if (eb) eb.disabled = false;
 
-  // 발자국 트래킹 시뮬 — 틱마다 직전 위치에 발자국을 떨구고 서로 가까워진다.
-  poll.start("w3-footsteps", () => footTick(ctx), FOOT_TICK_MS);
+  // 내 실시간 위치: GPS watch → 내 마커 갱신 + walk 세션에 broadcast(상대가 폴링으로 봄)
+  ctx.stopMine = watch((pos) => {
+    ctx.me = { lat: pos.lat, lng: pos.lng };
+    dropFoot(ctx, ctx.me.lat, ctx.me.lng, "me");
+    moveEntity(ctx.meEntity, ctx.me);
+    broadcastMe(store.walkId, ctx.me.lat, ctx.me.lng);
+  }, () => {});
+
+  // 상대 실시간 위치: 세션 폴링 → 상대 마커 갱신
+  poll.start("w3-loc", async () => {
+    try {
+      const r = await api.get(`/match-sessions/${ctx.sessionId}`);
+      if (typeof r.partner_lat === "number" && typeof r.partner_lng === "number") {
+        ctx.partner = { lat: r.partner_lat, lng: r.partner_lng };
+        if (!ctx.partnerEntity) { setBounds(ctx); placePartner(ctx); fitBoth(ctx); }
+        else { dropFoot(ctx, ctx.partner.lat, ctx.partner.lng, "partner"); moveEntity(ctx.partnerEntity, ctx.partner); }
+      }
+    } catch (_) {}
+  }, LOC_POLL_MS);
 }
 
-function footTick(ctx) {
+let _lastMatchBcast = 0;
+async function broadcastMe(walkId, lat, lng) {
+  if (!walkId) return;
+  const now = Date.now();
+  if (now - _lastMatchBcast < 4000) return; // 매 GPS 틱마다가 아니라 최소 4초 간격
+  _lastMatchBcast = now;
+  try { await api.patch(`/walks/${walkId}/location`, { latitude: lat, longitude: lng }); } catch (_) {}
+}
+
+function setBounds(ctx) {
   if (!ctx.partner) return;
-  // 직전(=현재) 위치에 발자국을 남긴다.
-  dropFoot(ctx, ctx.me.lat, ctx.me.lng, "me");
-  dropFoot(ctx, ctx.partner.lat, ctx.partner.lng, "partner");
-
-  // 서로 가까워진다(상대가 더 적극적으로 접근).
-  const partnerPrev = { ...ctx.partner };
-  ctx.partner = lerp(ctx.partner, ctx.me, 0.18);
-  ctx.me = lerp(ctx.me, partnerPrev, 0.05);
-
-  moveEntity(ctx.meEntity, ctx.me);
-  moveEntity(ctx.partnerEntity, ctx.partner);
+  const pad = 0.0008;
+  ctx.fbBounds = {
+    minLat: Math.min(ctx.me.lat, ctx.partner.lat) - pad,
+    maxLat: Math.max(ctx.me.lat, ctx.partner.lat) + pad,
+    minLng: Math.min(ctx.me.lng, ctx.partner.lng) - pad,
+    maxLng: Math.max(ctx.me.lng, ctx.partner.lng) + pad,
+  };
 }
 
 function dropFoot(ctx, lat, lng, kind) {
@@ -279,7 +256,6 @@ function dropFoot(ctx, lat, lng, kind) {
   const entity = makeEntity(ctx, node, lat, lng);
   ctx.footprints.push(entity);
   while (ctx.footprints.length > FOOT_MAX) ctx.footprints.shift().remove();
-  // 오래된 발자국일수록 옅게(trail fade).
   const n = ctx.footprints.length;
   ctx.footprints.forEach((f, i) => {
     const age = n - 1 - i;
@@ -299,12 +275,10 @@ function placeMe(ctx) {
 function placePartner(ctx) {
   if (ctx.partnerEntity || !ctx.partner) return;
   const inner = el("div.w3-partner", { id: "w3-partner" }, [petCharacterEl(ctx.partnerPet, { size: 38 })]);
-  // 지도 마커는 transform을 maplibre가 제어하므로 pop 애니메이션은 안쪽 노드에만 둔다.
   const outer = ctx.map ? el("div.w3-pwrap", {}, [inner]) : inner;
   ctx.partnerEntity = makeEntity(ctx, outer, ctx.partner.lat, ctx.partner.lng);
 }
 
-// 좌표에 노드를 배치하고 move/remove 핸들을 돌려준다(지도/폴백 공용).
 function makeEntity(ctx, node, lat, lng) {
   if (ctx.map) {
     const m = new maplibregl.Marker({ element: node, anchor: "center" }).setLngLat([lng, lat]).addTo(ctx.map);
@@ -316,7 +290,6 @@ function makeEntity(ctx, node, lat, lng) {
 
 function moveEntity(entity, pos) { if (entity) entity.move(pos.lat, pos.lng); }
 
-// 폴백(WebGL 불가): 경계 박스 내 비율로 절대배치.
 function fbPlace(ctx, node, lat, lng) {
   const b = ctx.fbBounds;
   let topPct = 50, leftPct = 50;

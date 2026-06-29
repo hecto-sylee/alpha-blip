@@ -154,25 +154,11 @@ export async function recordTabScreen(_p, query) {
     if (!myRecords.length) {
       section.append(el("p.sub.record-empty", { text: "이 날의 기록 영상이 없어요." }));
     } else {
-      for (const r of myRecords) section.append(buildRecordVideo(r, seq));
+      // 한 행에 2개씩 그리드. 듀얼이면 합성 영상에 두 사람이 함께 담겨 있다(상대 기록 별도 노출 X).
+      const grid = el("div.record-video-grid");
+      for (const r of myRecords) grid.append(buildRecordVideo(r, seq));
+      section.append(grid);
     }
-
-    // 매칭 여부: record 의 match_session_id 유무. 혼자 산책이면 상대 영역 숨김.
-    const sessionIds = [...new Set(records.filter((r) => r.match_session_id).map((r) => r.match_session_id))];
-    if (!sessionIds.length) return;
-
-    const partnerClips = [];
-    for (const sid of sessionIds) {
-      try {
-        const res = await api.get(`/match-sessions/${sid}/records`);
-        partnerClips.push(...(res.partner || []).flatMap((r) => r.clips || []));
-      } catch (_) {}
-    }
-    if (seq !== renderSeq) return;
-    if (!partnerClips.length) return; // 상대가 아직 안 찍었으면 영역 생략
-
-    section.append(el("h2.h2.record-partner-title", { text: "매칭 상대 기록 영상" }));
-    section.append(buildThumbStrip(partnerClips, "partner-clips", "상대의 기록 영상이 없어요.", seq));
   }
 
   // 한 기록 = 합성 가로영상 한 편(autoplay/loop) + 우상단 작은 다운로드 아이콘
@@ -189,6 +175,21 @@ export async function recordTabScreen(_p, query) {
         toast(err.status === 409 ? "영상을 합치는 중이에요. 잠시 후 다시 시도해 주세요" : (err.message || "다운로드 실패"), "err");
       } finally { dl.disabled = false; }
     });
+    const del = el("button.record-video-del", { type: "button", "aria-label": "기록 삭제", title: "기록 삭제" }, [icon("trash-2")]);
+    del.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!window.confirm("이 기록과 합성 영상을 삭제할까요? 되돌릴 수 없어요.")) return;
+      del.disabled = true;
+      try {
+        await api.del(`/records/${r.id}`);
+        toast("기록을 삭제했어요", "ok", "trash-2");
+        renderBody();
+      } catch (err) {
+        toast(err.message || "삭제에 실패했어요", "err");
+        del.disabled = false;
+      }
+    });
+    const outer = el("div.record-video", { dataset: { recId: r.id } }, [frame, dl, del]);
     api.blobUrl(`/records/${r.id}/video/download`).then((url) => {
       if (seq !== renderSeq) { try { URL.revokeObjectURL(url); } catch (_) {} return; }
       blobUrls.push(url);
@@ -196,7 +197,7 @@ export async function recordTabScreen(_p, query) {
       v.muted = true;
       frame.innerHTML = ""; frame.append(v);
     }).catch(() => { frame.innerHTML = ""; frame.append(el("span.sub", { text: "영상을 합치는 중이에요…" })); });
-    return el("div.record-video", { dataset: { recId: r.id } }, [frame, dl]);
+    return outer;
   }
 
   function buildThumbStrip(clips, id, emptyText, seq) {
@@ -248,6 +249,7 @@ export async function recordTabScreen(_p, query) {
 
   // ── 캘린더 팝업(centerModal): 날짜 점프 ────────────────────────
   function openCalendar() {
+    const monthCache = {}; // 월별 기록 날짜 Set 캐시
     let cur = parseYmd(state.date);
     cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
     centerModal((close) => {
@@ -286,6 +288,28 @@ export async function recordTabScreen(_p, query) {
           cell.addEventListener("click", () => { close(); goToDate(cellYmd); });
           grid.append(cell);
         }
+        grid.dataset.month = `${y}-${m}`;
+        markRecorded(y, m);
+      }
+
+      // 기록 있는 날에 점 표시(월 단위로 /records 조회 후 캐시)
+      async function markRecorded(y, m) {
+        const key = `${y}-${m}`;
+        const z = (n) => String(n).padStart(2, "0");
+        const from = `${y}-${z(m + 1)}-01`;
+        const to = `${y}-${z(m + 1)}-${z(new Date(y, m + 1, 0).getDate())}`;
+        let dates = monthCache[key];
+        if (!dates) {
+          try {
+            const res = await api.get(`/records?from=${from}&to=${to}`);
+            dates = new Set((res.records || []).filter((r) => r.visibility === "diary").map((r) => String(r.walked_at)));
+            monthCache[key] = dates;
+          } catch (_) { return; }
+        }
+        if (grid.dataset.month !== key) return; // 그 사이 달 이동
+        grid.querySelectorAll(".record-cal-cell[data-date]").forEach((c) => {
+          if (dates.has(c.dataset.date)) c.classList.add("has-rec");
+        });
       }
     });
   }

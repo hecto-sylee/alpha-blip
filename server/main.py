@@ -24,6 +24,7 @@ from .api import (
     privacy,
     quests,
     reactions,
+    realtime,
     records,
     rooms,
     shop,
@@ -77,7 +78,7 @@ async def validation_exc_handler(request: Request, exc: RequestValidationError):
 
 
 # API routers (prefix /api)
-for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop):
+for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop, realtime):
     app.include_router(r.router, prefix="/api")
 
 # Static assets

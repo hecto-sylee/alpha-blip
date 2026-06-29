@@ -145,6 +145,7 @@ class WalkStartRes(BaseModel):
 class LocationReq(BaseModel):
     latitude: float
     longitude: float
+    visible: bool | None = None  # 주면 위치 공유 on/off도 함께 갱신
 
 
 class WalkEndReq(BaseModel):
@@ -233,6 +234,8 @@ class MatchSessionRes(BaseModel):
     b_met: bool = False
     both_met: bool = False
     i_met: bool = False  # 요청자(나) 기준 met 여부
+    partner_lat: float | None = None  # 상대 실시간 위치(수락 후 표시)
+    partner_lng: float | None = None
 
 
 class MatchEndReq(BaseModel):

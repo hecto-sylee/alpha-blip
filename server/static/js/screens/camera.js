@@ -1,17 +1,18 @@
-// screens/camera.js — W4 카메라 촬영 (가로 기준, 회전 없음).
+// screens/camera.js — W4 카메라 촬영 (세로 기준, 회전/가로변환 없음).
 // 라우트 #/camera, setTab(null). ?quest 있으면 상단 한 줄.
 // 촬영(2초 클립) → POST /clips/upload → store.addWalkClip → #/walk 복귀.
 //
-// 방향 정책(가로 기준): 카메라 피드를 '회전 없이' 1280×720 캔버스에 cover-fit 해서 항상 똑바로 선
-// 가로로 녹화한다. 옆으로 들면(자동회전 ON) 가로 피드가 꽉 차고, 세로로 들어도 눕지 않고 가로로
-// 크롭될 뿐이다. 미리보기 = 캔버스(녹화본 그대로) 라 보이는 대로 찍힌다.
+// 방향 정책(세로 통일): 폰 자연스러운 세로 그대로 촬영한다. 가로 강제잠금/회전 없음.
+// 카메라 피드를 회전 없이 720×1280 캔버스에 cover-fit → 항상 똑바로 선 세로 9:16로 녹화.
+// (솔로·듀얼 동일. 듀얼 합성은 서버가 두 세로 영상을 상/하로 합친다.)
+// 미리보기 = 캔버스(녹화본 그대로)라 보이는 대로 찍힌다.
 import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, onLeave, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import { openCamera, record as recordClip, stopStream, mediaSupported, CLIP_MS } from "../media.js";
 
-const OUT_W = 1280, OUT_H = 720;
+const OUT_W = 720, OUT_H = 1280; // 세로 9:16
 
 export async function cameraScreen(_params, query = {}) {
   setTab(null);
@@ -30,7 +31,7 @@ export async function cameraScreen(_params, query = {}) {
 
   const stage = el("div.cam-stage", { id: "cam-stage" }, [video, canvas]);
 
-  // 매 프레임: 회전 없이 cover-fit 으로 캔버스에 그림(항상 가로 16:9 출력)
+  // 매 프레임: 회전 없이 cover-fit 으로 캔버스에 그림(세로 9:16 출력)
   function drawFrame() {
     const vw = video.videoWidth, vh = video.videoHeight;
     if (vw && vh) {
@@ -55,29 +56,11 @@ export async function cameraScreen(_params, query = {}) {
   shootBtn.addEventListener("click", () => doRecord());
   const bottomBar = el("div.cam-bottom", {}, [shootBtn]);
 
-  const screenEl = el("div.camera-screen.landscape", { id: "camera-screen" }, [stage, topBar, bottomBar]);
-
-  // 화면을 가로로 강제 잠금(자동회전 OFF여도 가로로 전환) → 피드가 가로로 들어와 똑바로 녹화.
-  // Android Chrome 지원. iOS Safari는 lock 미지원이라 throw → 무시(자동회전 ON 안내로 폴백).
-  async function enterLandscape() {
-    try {
-      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch (_) {}
-    try {
-      if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape");
-    } catch (_) {}
-  }
-  function exitLandscape() {
-    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
-    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
-  }
+  const screenEl = el("div.camera-screen", { id: "camera-screen" }, [stage, topBar, bottomBar]);
 
   // ---- 카메라 초기화 ----
   async function initCamera() {
     if (!mediaSupported()) return camError("이 브라우저는 카메라를 지원하지 않아요.");
-    await enterLandscape(); // 카메라 열기 전에 가로 잠금(사용자 제스처 활성 상태에서 시도)
     try {
       state.stream = await openCamera();
       video.srcObject = state.stream;
@@ -103,7 +86,7 @@ export async function cameraScreen(_params, query = {}) {
     stage.append(count);
     try {
       const { blob } = await recordClip(state.stream, {
-        canvas, // 회전 없는 가로 캔버스를 녹화
+        canvas, // 회전 없는 세로 캔버스를 녹화
         onTick: (left) => { count.textContent = (left / 1000).toFixed(1); },
       });
       count.remove();
@@ -128,7 +111,7 @@ export async function cameraScreen(_params, query = {}) {
   }
 
   mount(el("div.cam-host"));
-  onLeave(() => { cancelAnimationFrame(state.raf); stopStream(state.stream); exitLandscape(); });
+  onLeave(() => { cancelAnimationFrame(state.raf); stopStream(state.stream); });
   document.getElementById("overlay-root").append(screenEl);
   initCamera();
 }

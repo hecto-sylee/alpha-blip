@@ -70,11 +70,17 @@ export async function homeMapScreen() {
     el("p.center.sub", { text: "지도를 불러올 수 없어 목록으로 표시해요." }),
     el("div", { id: "fallback-list", class: "stack" }),
   ]);
+  const shareBtn = el("button.pin-btn.share-btn", { id: "share-btn", type: "button" });
+  const liveBtn = el("button.pin-btn.live-btn", { id: "live-btn", type: "button" }, ["📡 실시간 위치 반영"]);
   const pinBtn = el("button.pin-btn", { id: "pin-btn", type: "button" }, ["📍 위치 옮기기"]);
-  const clearBtn = override
-    ? el("button.coord-clear.pin-clear", { text: "GPS", title: "핀 해제(실제 위치로)", onclick: () => { store.setOverride(null); location.reload(); } })
-    : null;
-  const screen = el("div.map-screen.home-map-screen", {}, [mapEl, fallback, pinBtn, clearBtn].filter(Boolean));
+  const locActions = el("div.map-loc-actions", {}, [shareBtn, liveBtn, pinBtn]);
+  const renderShare = () => {
+    const on = store.settings.locationVisible;
+    shareBtn.textContent = on ? "👁 위치 공유 ON" : "🙈 위치 공유 OFF";
+    shareBtn.classList.toggle("off", !on);
+  };
+  renderShare();
+  const screen = el("div.map-screen.home-map-screen", {}, [mapEl, fallback, locActions]);
   mount(screen);
 
   const view = document.getElementById("view");
@@ -85,17 +91,43 @@ export async function homeMapScreen() {
   const ctx = { map: null, markers: new Map(), here, demo, myPet, useFallback: false };
   initMap(ctx, mapEl, fallback);
 
-  // 데모: 목업 강아지 마커를 직접 그린다(idle에선 내 위치 broadcast 안 함 → nearby 누락 대비).
+  // 데모: 목업 강아지 마커를 직접 그린다.
   addDemoPeerMarker(ctx);
+
+  // --- 위치 broadcast: 내가 상대 nearby에 보이게(세션 보장 + 위치 PATCH) ---
+  // idle에서도 broadcast 해야 두 사용자가 서로 보인다. 위치공유 OFF면 skip.
+  let lastBcast = 0;
+  async function broadcastLocation(lat, lng, force) {
+    // 네트워크 절약: GPS 틱마다가 아니라 최소 4초 간격으로만 위치 전송(force면 즉시).
+    const now = Date.now();
+    if (!force && now - lastBcast < 4000) return;
+    lastBcast = now;
+    if (!store.settings.locationVisible) return;
+    const petId = store.petId || ctx.myPet?.id;
+    if (!petId) return;
+    try {
+      const walkId = store.walkId;
+      if (!walkId) {
+        const res = await api.post("/walks/start", { pet_id: petId, latitude: lat, longitude: lng });
+        store.setWalkId(res.walk_session_id);
+      } else {
+        await api.patch(`/walks/${walkId}/location`, { latitude: lat, longitude: lng, visible: true });
+      }
+    } catch (_) {}
+  }
+  broadcastLocation(here.lat, here.lng, true); // 진입 시 1회 즉시 전송
 
   // --- 핀 찍기(실제 위치 대신 수동 지정) ---
   let pinMode = false;
+  let stopWatch = null; // 실행 중인 GPS watch 중지 핸들 (핀 찍으면 멈춰서 원위치로 안 튕김)
   const setPin = (lng, lat) => {
     ctx.here = { lat, lng, accuracy: 0 };
     store.setOverride({ lat, lng });
+    if (stopWatch) { stopWatch(); stopWatch = null; } // GPS 추적 중단
     updateMe(ctx); recenter(ctx);
+    broadcastLocation(lat, lng, true); // 상대에게도 옮긴 위치로 보이게(즉시)
     Promise.resolve(refreshNearby(ctx)).catch(() => {});
-    toast("이 위치로 옮겼어요 📍", "ok");
+    toast("이 위치로 옮겼어요 📍 (상대에게도 이 위치로 보여요)", "ok");
   };
   pinBtn.addEventListener("click", () => {
     if (!ctx.map) {
@@ -114,22 +146,64 @@ export async function homeMapScreen() {
     setPin(e.lngLat.lng, e.lngLat.lat);
   });
 
-  // --- 위치 추적: 고정(핀/데모)이면 watch 안 함, 아니면 watch → recenter ---
-  if (!fixedLoc) {
-    const stopWatch = watch(
+  // --- 위치 추적: 고정(핀)이면 watch 안 함 ---
+  function startWatch() {
+    if (stopWatch) return;
+    stopWatch = watch(
       (pos) => {
+        if (store.override) return; // 핀을 찍었으면 GPS 무시(원위치로 안 돌아감)
         ctx.here = pos;
         updateMe(ctx);
         recenter(ctx);
+        broadcastLocation(pos.lat, pos.lng); // 실시간 위치를 상대에게 반영
       },
       () => {}
     );
-    onLeave(stopWatch);
   }
+  if (!fixedLoc) startWatch();
+  onLeave(() => { if (stopWatch) stopWatch(); });
 
-  // --- nearby 폴링(강아지 캐릭터 핀만) ---
-  poll.start("home-nearby", () => refreshNearby(ctx), 3000);
-  onLeave(() => poll.stop("home-nearby"));
+  // 실시간 위치 반영하기: 핀 해제 + 현재 GPS로 broadcast + 추적 재개
+  liveBtn.addEventListener("click", async () => {
+    store.setOverride(null);
+    pinMode = false; pinBtn.classList.remove("on"); pinBtn.textContent = "📍 위치 옮기기";
+    if (ctx.map) mapEl.style.cursor = "";
+    try { ctx.here = await getOnce(); } catch (_) {}
+    updateMe(ctx); recenter(ctx);
+    startWatch();
+    await broadcastLocation(ctx.here.lat, ctx.here.lng, true);
+    Promise.resolve(refreshNearby(ctx)).catch(() => {});
+    toast("실시간 위치로 반영했어요 📡", "ok");
+  });
+
+  // 위치 공유 ON/OFF: 끄면 즉시 내 세션을 숨김(visible=false), 켜면 다시 broadcast.
+  shareBtn.addEventListener("click", async () => {
+    const on = !store.settings.locationVisible;
+    store.setSettings({ locationVisible: on });
+    renderShare();
+    if (on) {
+      broadcastLocation(ctx.here.lat, ctx.here.lng, true);
+      Promise.resolve(refreshNearby(ctx)).catch(() => {});
+      toast("위치 공유를 켰어요 👁", "ok");
+    } else {
+      const walkId = store.walkId;
+      if (walkId) {
+        try { await api.patch(`/walks/${walkId}/location`, { latitude: ctx.here.lat, longitude: ctx.here.lng, visible: false }); } catch (_) {}
+      }
+      toast("위치 공유를 껐어요 🙈", "");
+    }
+  });
+
+  // --- nearby: 서버 푸시(SSE)로 구독 — 폴링 대신 스트림 ---
+  let es = null;
+  try {
+    es = new EventSource(`/api/stream?token=${encodeURIComponent(store.token)}&radius_meters=${NEARBY_RADIUS}`);
+    es.onmessage = (e) => { try { renderNearby(ctx, JSON.parse(e.data).dogs || []); } catch (_) {} };
+    es.onerror = () => {}; // EventSource가 자동 재연결
+  } catch (_) {
+    poll.start("home-nearby", () => refreshNearby(ctx), 3000); // SSE 불가 환경 폴백
+  }
+  onLeave(() => { if (es) { try { es.close(); } catch (_) {} } poll.stop("home-nearby"); });
 }
 
 // ---------------- map ----------------
@@ -188,11 +262,15 @@ function recenter(ctx) {
 }
 
 // ---------------- nearby (강아지 캐릭터 핀만) ----------------
+// 일회성 조회(핀/공유 등 즉시 갱신용). 상시 갱신은 SSE 스트림이 담당.
 async function refreshNearby(ctx) {
   const res = await api.get(`/nearby/dogs?latitude=${ctx.here.lat}&longitude=${ctx.here.lng}&radius_meters=${NEARBY_RADIUS}`);
-  const dogs = res.dogs || [];
-  const myWs = store.walkId;
+  renderNearby(ctx, res.dogs || []);
+}
 
+// 받은 dogs 목록으로 마커를 diff 갱신(추가/제거). SSE push + 일회성 조회 공용.
+function renderNearby(ctx, dogs) {
+  const myWs = store.walkId;
   const seen = new Set();
   for (const dog of dogs) {
     if (myWs && dog.walk_session_id === myWs) continue; // 혹시 본인 세션이 섞이면 제외
@@ -200,7 +278,6 @@ async function refreshNearby(ctx) {
     if (ctx.markers.has(dog.walk_session_id)) continue;
     placeDog(ctx, dog, false);
   }
-
   // 사라진 친구 정리(데모 마커는 유지)
   for (const [ws, m] of ctx.markers) {
     if (m.demo || seen.has(ws)) continue;

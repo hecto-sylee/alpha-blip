@@ -12,17 +12,9 @@ from .models import Pet, QuestMission, QuestTemplate, User, WalkSession, utcnow
 # is_mock=False 라서 (1) 모든 사용자의 nearby에 보이고 (2) 매칭 요청 시 자동수락되지
 # 않는다(망고만 is_mock=True 라 즉시 자동수락). 토큰으로 idempotent 하게 식별한다.
 DEMO_DUMMY_PREFIX = "demo-dummy:"
-# 시연용 큐레이션 더미. PoC 테스트라 지도가 붐비지 않게 1~2마리만 둔다(나머지 과거
-# 더미는 _ensure_demo_dummies가 자동으로 숨긴다). breed가 픽셀 외형을 결정하고,
-# 하나는 appearance.equipped로 옷을 입혀 꾸미기 기능을 미리 보여준다.
-DEMO_DUMMIES = [
-    {"token": DEMO_DUMMY_PREFIX + "kong", "nickname": "테헤란 콩", "pet_name": "콩", "breed": "말티즈",
-     "size": "small", "tags": ["활발함", "공놀이 좋아함"], "sociality": 5, "activity_level": 4,
-     "walk_style": "active", "lat": 37.5014, "lng": 127.0402},
-    {"token": DEMO_DUMMY_PREFIX + "mochi", "nickname": "역삼 모찌", "pet_name": "모찌", "breed": "시바견",
-     "size": "medium", "tags": ["호기심", "마이웨이"], "sociality": 3, "activity_level": 4,
-     "walk_style": "normal", "lat": 37.5012, "lng": 127.0411, "appearance": {"equipped": ["bowtie"]}},
-]
+# 데모 강아지 제거(사용자 요청): 더미를 더 이상 시드하지 않는다. 빈 목록이면
+# _ensure_demo_dummies가 기존 더미를 지도에서 숨긴다(완전 삭제는 demo 리셋/정리 스크립트).
+DEMO_DUMMIES = []
 
 QUESTS = [
     # solo

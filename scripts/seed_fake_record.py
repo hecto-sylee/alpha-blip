@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -224,16 +225,18 @@ def main() -> None:
             n = max(len(tops), len(bots))
             scenes = [{"top": tops[i] if i < len(tops) else None,
                        "bottom": bots[i] if i < len(bots) else None} for i in range(n)]
-            out = os.path.join(MERGED_DIR, f"{rec_a.id}.mp4")
-            merge_svc.build_dual_video(scenes, out)
-            rel = os.path.relpath(out, UPLOADS_DIR)
-            rec_a.merged_path = rel
-            rec_b.merged_path = rel  # 상대 계정에서도 같은 합성본이 보이도록
+            out_a = os.path.join(MERGED_DIR, f"{rec_a.id}.mp4")
+            merge_svc.build_dual_video(scenes, out_a)
+            rec_a.merged_path = os.path.relpath(out_a, UPLOADS_DIR)
+            # 상대 계정도 '자기 소유' 합성본을 갖도록 복사(개별 삭제 시 서로 영향 없음)
+            out_b = os.path.join(MERGED_DIR, f"{rec_b.id}.mp4")
+            shutil.copy2(out_a, out_b)
+            rec_b.merged_path = os.path.relpath(out_b, UPLOADS_DIR)
             if points_svc:
                 try: points_svc.award_for_record(db, user, clip_count=len(tops), is_match=True)
                 except Exception: pass
             db.commit()
-            print(f"  ✓ 듀얼 기록 {rec_a.id}  scenes={n}  merged={rel}")
+            print(f"  ✓ 듀얼 기록 {rec_a.id}  scenes={n}  merged={rec_a.merged_path}")
             print(f"    (상대 '{partner.login_id}' 기록 {rec_b.id} 에도 동일 합성본 연결)")
         else:
             # ----- 솔로: concat -----

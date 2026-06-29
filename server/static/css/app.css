@@ -1239,8 +1239,13 @@ h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; 
 .shop-btn.locked, .shop-btn:disabled { background: var(--surface-2); color: var(--on-surface-var); box-shadow: 0 3px 0 var(--surface-shadow); cursor: not-allowed; }
 
 /* ---------------- Pin drop / auth hero ---------------- */
+/* 위치 액션: 실시간/핀 버튼 세로 스택(우상단). 실시간이 위, 위치 옮기기가 아래. */
+.map-loc-actions { position: absolute; right: 14px; top: 70px; z-index: 25; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .pin-btn { position: absolute; right: 14px; top: 70px; z-index: 25; font-family: var(--font-head); font-size: .85rem;
   background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); padding: 9px 14px; box-shadow: 3px 3px 0 var(--surface-shadow); cursor: pointer; }
+.map-loc-actions .pin-btn { position: static; } /* 컨테이너 안에선 흐름 배치 */
+.pin-btn.live-btn { background: var(--secondary, var(--surface)); color: var(--on-secondary, var(--on-surface)); }
+.pin-btn.share-btn.off { background: var(--surface-2); color: var(--on-surface-var); }
 .pin-btn.on { background: var(--primary); color: var(--on-primary); box-shadow: 3px 3px 0 var(--primary-shadow); }
 .coord-clear { margin-left: 8px; font-size: .7rem; border: 2px solid var(--on-surface); cursor: pointer; background: var(--surface-2); color: var(--on-surface-var); padding: 2px 8px; }
 .auth-hero { width: 132px; height: 132px; margin: 0 auto 6px; image-rendering: pixelated; }
@@ -1263,16 +1268,22 @@ h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; 
 .record-dl-btn { width: 100%; }
 .record-thumb video, .record-thumb img { image-rendering: auto; }
 
-/* 기록 영상: 합성 가로(16:9) 영상 크게 + 우상단 작은 다운로드 아이콘 */
-.record-video { position: relative; margin: 8px 0; }
-.record-video-frame { aspect-ratio: 16 / 9; width: 100%; background: #1A1410; border: 2px solid var(--on-surface);
+/* 기록 영상 그리드: 한 행에 2개(세로 9:16 칸), cover-fit. 솔로(가로)는 칸에 맞춰 크롭, 듀얼(세로)은 꽉 참. */
+.record-video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.record-video { position: relative; }
+.record-video-frame { aspect-ratio: 9 / 16; width: 100%; background: #1A1410; border: 2px solid var(--on-surface);
   display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--ambient); }
 .record-video-frame video { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
 .record-video-loading { color: #fff; opacity: .55; }
-.record-video-dl { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-  font-size: 1.3rem; line-height: 1; font-family: var(--font-head); font-weight: 400;
+.record-video-dl { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; line-height: 1; font-family: var(--font-head); font-weight: 400;
   background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); cursor: pointer; box-shadow: 2px 2px 0 var(--surface-shadow); }
 .record-video-dl:active { transform: translate(2px, 2px); box-shadow: none; }
+.record-video-del { position: absolute; top: 6px; left: 6px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); color: var(--danger); border: 2px solid var(--on-surface); cursor: pointer; box-shadow: 2px 2px 0 var(--surface-shadow); }
+.record-video-del .ic { width: 16px; height: 16px; }
+.record-video-del:active { transform: translate(2px, 2px); box-shadow: none; }
+.record-video-del:disabled { opacity: .5; }
 
 /* ---------------- Quest page (LP-12, 지도 없는 퀘스트 스택 + 산책 종료) ---------------- */
 .quest-page { padding-bottom: 112px; }
@@ -1566,3 +1577,8 @@ h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; 
 .record-cal-cell.is-empty { background: transparent; cursor: default; pointer-events: none; }
 .record-cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--secondary); }
 .record-cal-cell.is-selected { background: var(--primary); color: var(--on-primary); box-shadow: 0 2px 0 var(--primary-shadow); }
+/* 기록 있는 날: 하단 점 */
+.record-cal-cell.has-rec { position: relative; }
+.record-cal-cell.has-rec::after { content: ""; position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+  width: 5px; height: 5px; border-radius: 50%; background: var(--tertiary, var(--primary)); }
+.record-cal-cell.is-selected.has-rec::after { background: var(--on-primary); }

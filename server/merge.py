@@ -13,7 +13,7 @@ from pathlib import Path
 import imageio_ffmpeg
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-W, H = 640, 360
+W, H = 720, 1280  # 솔로 출력=세로 9:16 (촬영이 세로로 통일됨)
 FPS = "30"
 ENC = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", FPS, "-an", "-preset", "veryfast"]
 
@@ -65,8 +65,9 @@ def _concat(scenes, out, td):
         _run(["-f", "concat", "-safe", "0", "-i", str(listfile), "-c", "copy", str(out)])
 
 
-# ---- 듀얼(매칭) 합성: 같은 퀘스트의 top/bottom 클립을 vstack 후 concat ----
-PANE_H = H // 2  # 상/하 각 180
+# ---- 듀얼(매칭) 합성: 세로 촬영 → 상=user_a / 하=user_b 로 vstack 후 concat ----
+# 출력은 세로 9:16(720×1280), 각 칸 720×640. 세로 클립이 세로 칸에 cover-fit 되어 덜 잘림.
+DUAL_W, DUAL_PANE_H = 720, 640
 
 
 def _scale_to(src, out, w, h):
@@ -100,8 +101,8 @@ def build_dual_video(scenes: list[dict], out_path: str) -> str:
             bot = td / f"b_{i:03d}.mp4"
             scene = td / f"s_{i:03d}.mp4"
             try:
-                _pane(sc.get("top"), str(top), W, PANE_H)
-                _pane(sc.get("bottom"), str(bot), W, PANE_H)
+                _pane(sc.get("top"), str(top), DUAL_W, DUAL_PANE_H)
+                _pane(sc.get("bottom"), str(bot), DUAL_W, DUAL_PANE_H)
                 _run(["-i", str(top), "-i", str(bot), "-filter_complex",
                       "[0:v][1:v]vstack=inputs=2[v]", "-map", "[v]", *ENC, str(scene)])
                 built.append(scene)

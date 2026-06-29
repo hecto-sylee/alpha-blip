@@ -76,9 +76,7 @@ export async function settingsScreen() {
   const s = store.settings;
 
   const toggles = [
-    ["locationVisible", "위치 공유", "산책 중 지도에 내 위치를 노출합니다."],
-    ["approximate", "대략적 위치 표시", "정확한 좌표 대신 흐린 위치로 보여줍니다."],
-    ["hideHome", "집 주변 비공개", "집 근처에서는 위치를 숨깁니다."],
+    ["locationVisible", "내 위치 공유", "끄면 지도에서 다른 사람에게 안 보여요."],
   ];
 
   const rows = toggles.map(([key, title, desc]) =>

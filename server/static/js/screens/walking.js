@@ -56,14 +56,14 @@ export async function walkingScreen(_params, query = {}) {
       ]);
       if (!isDone) {
         card.querySelector(".quest-shoot").addEventListener("click", () =>
-          navigate(`/camera?mission=${encodeURIComponent(m.id)}&quest=${encodeURIComponent(m.title)}`));
+          navigate(`/camera?mission=${encodeURIComponent(m.id)}&quest=${encodeURIComponent(m.title)}${matchId ? "&dual=1" : ""}`));
       }
       stack.append(card);
     }
     // 자유 촬영(미션과 무관한 한 컷)도 허용
     stack.append(el("button.btn.secondary.quest-free", { type: "button" },
       [icon("camera"), el("span", { text: "자유 촬영" })]));
-    stack.querySelector(".quest-free").addEventListener("click", () => navigate("/camera"));
+    stack.querySelector(".quest-free").addEventListener("click", () => navigate(matchId ? "/camera?dual=1" : "/camera"));
   };
   renderStack();
 

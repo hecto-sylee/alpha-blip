@@ -58,6 +58,11 @@ def update_location(
     ws.lat = body.latitude
     ws.lng = body.longitude
     ws.location_updated_at = utcnow()
+    # 위치를 갱신한다 = 지금 활동(present) 중 → 세션을 활성으로 보장(종료된 세션 재사용 대비).
+    # 그래야 상대 nearby(활성 세션만)에 다시 보인다.
+    ws.status = "active"
+    if body.visible is not None:  # 위치 공유 on/off 즉시 반영
+        ws.is_location_visible = body.visible
     db.commit()
     return {"ok": True}
 

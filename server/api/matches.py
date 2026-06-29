@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
-from ..models import Clip, MatchLog, MatchRequest, MatchSession, Pet, Record, User
+from ..models import Clip, MatchLog, MatchRequest, MatchSession, Pet, Record, User, WalkSession
 from ..schemas import (
     AcceptRes,
     ClipOut,
@@ -127,6 +127,18 @@ def _session_res(session: MatchSession, user: User, db: Session) -> MatchSession
     partner = db.get(User, partner_id)
     pet = db.get(Pet, partner_pet_id) if partner_pet_id else None
     i_met = session.a_met if user.id == session.user_a_id else session.b_met
+    # 상대의 현재 실제 위치(활성 walk 세션) — 수락 후 서로 실시간 위치 표시용
+    pws = (
+        db.query(WalkSession)
+        .filter(
+            WalkSession.user_id == partner_id,
+            WalkSession.status == "active",
+            WalkSession.lat.isnot(None),
+            WalkSession.lng.isnot(None),
+        )
+        .order_by(WalkSession.started_at.desc())
+        .first()
+    )
     return MatchSessionRes(
         id=session.id,
         status=session.status,
@@ -140,6 +152,8 @@ def _session_res(session: MatchSession, user: User, db: Session) -> MatchSession
         started_at=session.started_at,
         a_met=session.a_met, b_met=session.b_met,
         both_met=bool(session.a_met and session.b_met), i_met=bool(i_met),
+        partner_lat=pws.lat if pws else None,
+        partner_lng=pws.lng if pws else None,
     )
 
 
@@ -161,17 +175,11 @@ def mark_met(session_id: str, user: User = Depends(get_current_user), db: Sessio
         raise HTTPException(status_code=404, detail="session not found")
     if user.id not in (session.user_a_id, session.user_b_id):
         raise HTTPException(status_code=403, detail="not a participant")
+    # 요청자/수락자 각자 자기 met만 표시. 양쪽 모두 눌러야 진행(자동 met 없음).
     if user.id == session.user_a_id:
         session.a_met = True
     else:
         session.b_met = True
-    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
-    partner = db.get(User, partner_id)
-    if partner and partner.is_mock:  # 데모 mock 상대는 즉시 만남 확정
-        if partner_id == session.user_a_id:
-            session.a_met = True
-        else:
-            session.b_met = True
     if session.a_met and session.b_met and session.status == "active":
         session.status = "walking"
     db.commit()

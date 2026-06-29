@@ -291,8 +291,23 @@ def delete_record(record_id: str, user: User = Depends(get_current_user), db: Se
         raise HTTPException(status_code=404, detail="record not found")
     if rec.user_id != user.id:
         raise HTTPException(status_code=403, detail="not your record")
-    for clip in db.query(Clip).filter(Clip.record_id == rec.id):
-        clip.status = "hidden"
+    # 합성 영상 파일 삭제
+    if rec.merged_path:
+        merged = os.path.join(UPLOADS_DIR, rec.merged_path)
+        if os.path.exists(merged):
+            try:
+                os.remove(merged)
+            except OSError:
+                pass
+    # 이 기록의 클립 파일 + 행 삭제
+    for clip in db.query(Clip).filter(Clip.record_id == rec.id).all():
+        cp = os.path.join(UPLOADS_DIR, f"{clip.id}.webm")
+        if os.path.exists(cp):
+            try:
+                os.remove(cp)
+            except OSError:
+                pass
+        db.delete(clip)
     db.delete(rec)
     db.commit()
     return {"ok": True}

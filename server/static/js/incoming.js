@@ -36,9 +36,10 @@ function show(req) {
   accept.addEventListener("click", async () => {
     accept.disabled = true;
     try {
-      const res = await api.patch(`/match-requests/${req.id}/accept`, {});
+      await api.patch(`/match-requests/${req.id}/accept`, {});
       hide();
-      navigate(`/session/${res.match_session_id}`);
+      // 수락자도 요청자와 같은 만남 게이트 화면으로 → 둘 다 [만났습니다] 눌러야 퀘스트로.
+      navigate(`/matching/${req.id}`);
     } catch (e) {
       toast(e.message || "수락 실패", "err");
       accept.disabled = false;
@@ -64,7 +65,7 @@ async function tick() {
   if (!store.isAuthed) { hide(); return; }
   const h = location.hash;
   // 요청/세션 화면에서는 자체 UI가 있으므로 전역 배너 생략
-  if (h.startsWith("#/request/") || h.startsWith("#/session/")) { hide(); return; }
+  if (h.startsWith("#/request/") || h.startsWith("#/session/") || h.startsWith("#/matching/")) { hide(); return; }
   let data;
   try { data = await api.get("/match-requests/incoming"); } catch { return; }
   const reqs = (data.requests || []).filter((r) => !dismissed.has(r.id));
