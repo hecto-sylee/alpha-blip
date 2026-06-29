@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from collections import Counter
 from datetime import date
 
@@ -126,7 +127,16 @@ def _merge_record_task(record_id: str) -> None:
         if rec.match_session_id:
             session = db.get(MatchSession, rec.match_session_id)
             if session is not None and _build_dual(db, session, out):
-                rec.merged_path = os.path.relpath(out, UPLOADS_DIR)
+                # 양쪽(요청자·수락자) 기록 모두 '두 명 합성본'을 갖도록 복사+merged_path.
+                # 늦게 저장한 쪽의 합성이 돌 때, 먼저 솔로로 떴던 상대 기록도 합성본으로 갱신.
+                for r2 in db.query(Record).filter(Record.match_session_id == session.id).all():
+                    dst = os.path.join(MERGED_DIR, f"{r2.id}.mp4")
+                    if r2.id != record_id:
+                        try:
+                            shutil.copy2(out, dst)
+                        except OSError:
+                            continue
+                    r2.merged_path = os.path.relpath(dst, UPLOADS_DIR)
                 db.commit()
                 return
         clips = (

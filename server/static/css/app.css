@@ -1294,6 +1294,9 @@ h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; 
 .quest-card-body { flex: 1; min-width: 0; }
 .quest-card-title { font-family: var(--font-head); font-size: .95rem; }
 .quest-card-hint { font-size: .75rem; color: var(--on-surface-var); margin-top: 2px; }
+/* 듀얼: 상대가 이 퀘스트를 찍었는지(셋로그식) */
+.quest-card-partner { font-size: .72rem; margin-top: 4px; color: var(--on-surface-var); }
+.quest-card-partner.on { color: var(--tertiary, var(--primary)); font-weight: 800; }
 .quest-shoot { flex: none; }
 .quest-free { width: 100%; margin-top: 2px; }
 .quest-done { color: var(--success-shadow); font-size: .8rem; display: inline-flex; align-items: center; gap: 4px; }

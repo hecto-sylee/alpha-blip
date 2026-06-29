@@ -8,6 +8,7 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, onLeave, icon } from "../ui.js";
 import { navigate } from "../router.js";
+import * as poll from "../polling.js";
 
 const MATCH_KEY = "blip_walk_match";    // 매칭 산책의 match_session_id
 const START_KEY = "blip_walk_started";  // 산책 시작 시각(ms)
@@ -34,6 +35,7 @@ export async function walkingScreen(_params, query = {}) {
   const { dailyQuestId, missions } = await ensureQuest(matchId);
 
   // --- 퀘스트 스택 ---
+  let partnerMissions = new Set(); // 매칭: 상대가 이미 촬영한 미션 id (셋로그식 표시)
   const stack = el("div.quest-stack", { id: "quest-stack" });
   const renderStack = () => {
     const done = new Set(store.walkClips.map((c) => c.mission_id).filter(Boolean));
@@ -44,10 +46,14 @@ export async function walkingScreen(_params, query = {}) {
     }
     for (const m of list) {
       const isDone = done.has(m.id);
+      const pDone = partnerMissions.has(m.id);
       const card = el("div.quest-card" + (isDone ? ".done" : ""), { dataset: { mission: m.id } }, [
         el("div.quest-card-body", {}, [
           el("div.quest-card-title", { text: m.title }),
           m.hint ? el("div.quest-card-hint", { text: m.hint }) : null,
+          matchId ? el("div.quest-card-partner" + (pDone ? ".on" : ""), {
+            text: pDone ? "상대 촬영 완료 ✓" : "상대 아직 미촬영",
+          }) : null,
         ].filter(Boolean)),
         isDone
           ? el("span.quest-done", {}, [icon("check"), " 완료"])
@@ -69,14 +75,17 @@ export async function walkingScreen(_params, query = {}) {
 
   // --- 산책 종료(전화 끊기) ---
   const endBtn = el("button.end-call", { id: "walk-end", type: "button", "aria-label": "산책 종료" }, [icon("phone-off")]);
-  endBtn.addEventListener("click", async () => {
-    if (endBtn.disabled) return;
+  let ending = false;
+  async function endWalk(byPartner) {
+    if (ending) return;
+    ending = true;
     endBtn.disabled = true;
+    poll.stop("walk-session");
     try {
       const startMs = Number(localStorage.getItem(START_KEY)) || Date.now();
       const mins = Math.max(0, Math.round((Date.now() - startMs) / 60000));
-      if (matchId) await api.post(`/match-sessions/${matchId}/end`, { duration_minutes: mins });
-      else if (walkId) await api.post(`/walks/${walkId}/end`, {});
+      if (matchId) { try { await api.post(`/match-sessions/${matchId}/end`, { duration_minutes: mins }); } catch (_) {} }
+      else if (walkId) { try { await api.post(`/walks/${walkId}/end`, {}); } catch (_) {} }
 
       const clip_ids = store.walkClips.map((c) => c.clip_id).filter(Boolean);
       const payload = { visibility: "diary", walked_at: todayStr(), clip_ids, daily_quest_id: dailyQuestId };
@@ -88,13 +97,32 @@ export async function walkingScreen(_params, query = {}) {
       store.setWalkId(null);
       clearMatch();
       localStorage.removeItem(START_KEY);
-      toast("산책을 기록했어요", "ok", "paw-print");
+      toast(byPartner ? "상대가 종료해 함께 기록했어요" : "산책을 기록했어요", "ok", "paw-print");
       navigate("/diary?saved=1");
     } catch (e) {
+      ending = false;
       endBtn.disabled = false;
       toast(e.message || "기록 저장에 실패했어요", "err");
     }
-  });
+  }
+  endBtn.addEventListener("click", () => endWalk(false));
+
+  // 매칭: 세션 폴링 — 상대가 종료하면 함께 종료, 상대 촬영현황(셋로그) 갱신.
+  if (matchId) {
+    poll.start("walk-session", async () => {
+      try {
+        const s = await api.get(`/match-sessions/${matchId}`);
+        if (s && s.status === "ended" && !ending) { endWalk(true); return; }
+      } catch (_) {}
+      try {
+        const r = await api.get(`/match-sessions/${matchId}/records`);
+        const next = new Set((r.partner || []).flatMap((rec) => (rec.clips || []).map((c) => c.mission_id)).filter(Boolean));
+        const changed = next.size !== partnerMissions.size || [...next].some((m) => !partnerMissions.has(m));
+        if (changed) { partnerMissions = next; renderStack(); }
+      } catch (_) {}
+    }, 3000);
+    onLeave(() => poll.stop("walk-session"));
+  }
 
   mount(el("div.stack.quest-page", { id: "quest-page" }, [
     el("div.quest-context", {}, [

@@ -12,13 +12,15 @@ import { el, mount, toast, setTab, onLeave, icon } from "../ui.js";
 import { navigate } from "../router.js";
 import { openCamera, record as recordClip, stopStream, mediaSupported, CLIP_MS } from "../media.js";
 
-const OUT_W = 720, OUT_H = 1280; // 세로 9:16
-
 export async function cameraScreen(_params, query = {}) {
   setTab(null);
 
   const mission = query.mission || null;
   const quest = query.quest || null;
+  // 듀얼(매칭)=반쪽(720×640)으로 촬영 → 합성 시 상/하로 합쳐져 9:16. "반으로 찍고 결과도 반".
+  // 솔로=세로 풀(720×1280).
+  const dual = !!(query && query.dual === "1");
+  const OUT_W = 720, OUT_H = dual ? 640 : 1280;
   const state = { stream: null, recording: false, raf: 0 };
 
   // 숨긴 원본 비디오 + 보이는 캔버스(미리보기 = 녹화본)
