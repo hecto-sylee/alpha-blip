@@ -924,3 +924,628 @@ textarea.input { resize: vertical; min-height: 84px; }
   background: var(--primary-container); color: var(--on-primary-container);
 }
 .mini-chip.soft { background: var(--surface-2); color: var(--on-surface-var); }
+
+/* === W0: tabs/center-modal === */
+/* 화면 가운데 카드 팝업 (ui.js centerModal). bottomSheet 패턴을 중앙 정렬로 재사용. */
+.center-modal {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(20,16,30,.34);
+  opacity: 0; transition: opacity var(--dur) var(--ease);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.center-modal.open { opacity: 1; }
+.center-modal-card {
+  position: relative;
+  width: 100%; max-width: 340px;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: 0 4px 0 var(--surface-shadow), var(--ambient-lg);
+  padding: 24px 20px;
+  opacity: 0;            /* springMotion 이 등장 시 1로 올린다 */
+  will-change: transform, opacity;
+}
+.center-modal-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--on-surface-var);
+  border: none; border-radius: var(--r-pill); cursor: pointer;
+  box-shadow: 0 2px 0 var(--surface-shadow);
+}
+.center-modal-close:active { transform: translateY(2px); box-shadow: none; }
+
+/* === W1: home-map === */
+/* idle 홈 지도. 전체화면 지도 + 본인 중앙 빨강 마커 + 강아지-only 핀 + 가운데 프로필 팝업. */
+
+/* 레이아웃: 헤더와 탭바 사이 전체화면 지도(한 화면, 문서 스크롤 없음) */
+#view.home-map-view { padding: 0 12px calc(var(--tabbar-h) + 12px); overflow: hidden; }
+#view.home-map-view .screen {
+  height: calc(100dvh - var(--header-h) - var(--tabbar-h) - 24px);
+  min-height: 0;
+}
+.home-map-screen { width: 100%; height: 100%; }
+
+/* 본인 마커 — 빨강 변형(.me-marker.red). 빨간 도트 / 빨간 링을 두른 내 강아지. */
+.me-marker.red {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(255, 75, 75, .30), var(--shadow-1);
+  cursor: pointer;
+}
+.me-marker.red.has-char {
+  background: #fff;
+  border: 3px solid var(--danger);
+  box-shadow: 0 0 0 4px rgba(255, 75, 75, .30), var(--ambient);
+}
+
+/* 주변 강아지 핀 — 캐릭터만(이름/거리 메타 없음). 둥근 화이트 입체 핀. */
+.dog-pin {
+  cursor: pointer;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 var(--depth) 0 var(--surface-shadow), var(--ambient);
+  transform-origin: bottom center;
+  animation: marker-pop var(--dur) var(--spring) both;
+}
+.dog-pin:active { transform: translateY(var(--press)); box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient); }
+.dog-pin-face { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.dog-pin.demo {
+  background: var(--secondary-container);
+  box-shadow: 0 var(--depth) 0 var(--secondary-shadow), var(--ambient-lg);
+}
+
+/* center modal 본문 — 프로필 카드(캐릭터 + 정보 + CTA). 인라인 스타일 없이 클래스로. */
+.cm-profile { gap: 10px; }
+.cm-char { width: 96px; height: 96px; margin: 2px auto 0; display: flex; align-items: center; justify-content: center; }
+.cm-tags { justify-content: center; }
+.cm-caution { color: var(--danger); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.cm-profile .cta { margin-top: 4px; }
+/* === W2: walking === */
+/* 산책 중 HUD. 상단 투명 퀘스트박스(지도 안 가림) + 좌하단 촬영 + 우하단 통화종료.
+   .map-screen / #walk-map / .walk-overlays-top / .me-marker / .dog-marker 는 기존 walk 레이어 재사용. */
+
+/* 상단 라이브 상태 칩 (지도를 가리지 않는 작은 칩) */
+.walk-live {
+  pointer-events: none; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 13px; border-radius: var(--r-pill);
+  background: var(--surface); color: var(--on-surface);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+  font-weight: 800; font-size: .82rem;
+}
+.walk-live .dotlive {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--success);
+  box-shadow: 0 0 0 0 rgba(88,204,2,.5); animation: pulse 1.8s infinite;
+}
+
+/* 상단 투명 퀘스트박스 — 미션 ≤2, 가벼운 불투명 칩(글래스 아님), 콘텐츠 폭만 차지해 지도 가림 없음 */
+.walk-quests {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  pointer-events: none; /* 각 박스만 클릭 가능 */
+}
+.walk-quest {
+  pointer-events: auto; cursor: pointer;
+  max-width: 100%; display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px 9px 11px; border: none; border-radius: var(--r-pill);
+  background: var(--surface); color: var(--on-surface); text-align: left;
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+  font-weight: 800; font-size: .9rem;
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.walk-quest:active { transform: translateY(var(--press)); box-shadow: var(--ambient); }
+.walk-quest .wq-ic { display: inline-flex; color: var(--primary); font-size: 1.05rem; }
+.walk-quest .wq-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
+.walk-quest.done { background: var(--secondary-container); color: var(--on-secondary-container); }
+.walk-quest.done .wq-ic { color: var(--success); }
+.walk-quest.done .wq-title { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .85; }
+
+/* 좌하단 일반촬영 / 우하단 통화종료 — 눌리는 입체 둥근 버튼 */
+.walk-fab {
+  position: absolute; bottom: calc(env(safe-area-inset-bottom) + 22px);
+  z-index: 7; width: 64px; height: 64px; padding: 0; border: none; border-radius: var(--r-pill);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  font-size: 1.7rem; color: var(--on-surface); background: var(--surface);
+  box-shadow: 0 var(--depth-cta) 0 var(--surface-shadow), var(--ambient-lg);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.walk-fab:active {
+  transform: translateY(calc(var(--depth-cta) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+}
+.walk-fab:disabled { opacity: .6; }
+.walk-fab.left { left: 18px; }
+.walk-fab.right {
+  right: 18px; color: #fff; background: var(--danger);
+  box-shadow: 0 var(--depth-cta) 0 var(--danger-shadow), var(--ambient-lg);
+}
+.walk-fab.right:active {
+  transform: translateY(calc(var(--depth-cta) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--danger-shadow), var(--ambient);
+}
+/* === W3: matching === */
+/* 산책 매칭중 — 본인(빨강)+상대(강아지 핀) 둘만, 발자국 트래킹.
+   .map-screen / .walk-view / marker-pop / pulse 는 기존 자산 재사용. */
+.w3-map { position: absolute; inset: 0; background: linear-gradient(160deg,#dfe9f3,#cfe3d6); }
+
+/* 본인 빨강 마커 (홈/산책의 내 위치 도트와 동일 무드) */
+.w3-me {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--primary); border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(255,107,94,.30), var(--ambient);
+  pointer-events: none;
+}
+
+/* 상대 강아지 캐릭터 핀 — 화이트 입체 핀 + pop 등장 */
+.w3-pwrap { pointer-events: none; }
+.w3-partner {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 var(--depth) 0 var(--secondary-shadow), var(--ambient);
+  animation: marker-pop var(--dur) var(--spring) both;
+  pointer-events: none;
+}
+.w3-partner .bp-char { width: 38px; height: 38px; }
+
+/* 발자국 트레일 — 폴링 틱마다 직전 위치에 누적, 오래될수록 옅게 */
+.w3-foot {
+  color: var(--primary); pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(217,74,61,.35));
+  opacity: .9; transition: opacity var(--dur) var(--ease);
+}
+.w3-foot.partner { color: var(--secondary); filter: drop-shadow(0 1px 1px rgba(20,160,131,.35)); }
+.w3-foot .ic { width: 18px; height: 18px; }
+.w3-foot.fade-1 { opacity: .55; }
+.w3-foot.fade-2 { opacity: .32; }
+.w3-foot.fade-3 { opacity: .16; }
+
+/* 상단 상태 오버레이 */
+.w3-top {
+  position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 12px; right: 12px;
+  z-index: 6; padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+  border-radius: var(--r-lg); background: var(--surface);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+}
+.w3-top .dotlive {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: var(--secondary); box-shadow: 0 0 0 0 rgba(43,201,168,.5);
+  animation: pulse 1.8s infinite;
+}
+
+/* 하단 [매칭 성공] CTA 바 */
+.w3-bottom {
+  position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 16px);
+  z-index: 6; padding: 14px; border-radius: var(--r-xl);
+  background: var(--surface); box-shadow: 0 4px 0 var(--surface-shadow), var(--ambient-lg);
+}
+.w3-bottom .w3-hint {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  font-weight: 700; font-size: .9rem; color: var(--on-surface-var);
+}
+.w3-bottom .w3-hint .ic { font-size: 1.1rem; }
+
+/* 폴백(WebGL 불가): 경계 박스 내 비율 절대배치 */
+.w3-fallback {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #e7f0ff, #d3e6da 70%);
+}
+.w3-fallback .w3-me,
+.w3-fallback .w3-foot,
+.w3-fallback .w3-pwrap,
+.w3-fallback .w3-partner { position: absolute; transform: translate(-50%, -50%); }
+
+/* ========================================================================= */
+/* LetsPaw 픽셀-에겐 오버레이 — 토큰 리스킨(전 컴포넌트 자동 적용) + 각진 픽셀 + Galmuri */
+/* ========================================================================= */
+:root {
+  --primary: #FF9EBB; --primary-dim: #F2789F; --primary-shadow: #E0608A; --on-primary: #FFF8EE;
+  --primary-container: #FFE0EB; --on-primary-container: #7A3F50;
+  --secondary: #FFD98A; --secondary-shadow: #E9B25A; --secondary-container: #FFF1C9; --on-secondary-container: #7A5526;
+  --tertiary: #BFE9D2; --tertiary-shadow: #8FCFB0; --tertiary-container: #DFF5E9; --on-tertiary-container: #2C6B50;
+  --success: #8FCFB0; --success-shadow: #6BB495; --danger: #F4748B; --danger-shadow: #D9536D;
+  --bg: #FFF8EE; --surface: #FFF8EE; --surface-2: #FBEEDD; --surface-3: #F2E0CC; --surface-shadow: #E0C3B4;
+  --on-surface: #6E544C; --on-surface-var: #A98E84; --divider: #E7C9BC;
+  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0; --r-pill: 0;
+  --depth: 4px; --depth-cta: 5px; --press: 3px;
+  --ambient: 3px 3px 0 var(--surface-shadow); --ambient-lg: 4px 4px 0 var(--surface-shadow);
+  --shadow-1: 2px 2px 0 var(--surface-shadow); --shadow-2: 3px 3px 0 var(--surface-shadow); --shadow-pop: 4px 4px 0 var(--surface-shadow);
+  --font: "Galmuri11", "DungGeunMo", monospace;
+  --font-head: "Galmuri14", "Galmuri11", "DungGeunMo", monospace;
+  --bd: var(--on-surface);
+}
+body {
+  font-family: var(--font);
+  -webkit-font-smoothing: none; font-smooth: never;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(0deg, rgba(255,224,235,.26) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,241,201,.40) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+#app { box-shadow: none; }
+h1, h2, h3, .h1, .h2, .title { font-family: var(--font-head); font-weight: 400; letter-spacing: 0; line-height: 1.4; }
+.h1 { font-size: 1.35rem; } .h2 { font-size: 1.02rem; } .title { font-size: 1.1rem; }
+.sub, .muted { font-size: .8rem; line-height: 1.7; }
+.strong { font-weight: 400; }
+/* 상단바 = 핑크 픽셀 바 */
+.topbar { background: var(--primary); box-shadow: 0 3px 0 var(--primary-shadow); }
+.topbar .brand { font-family: var(--font-head); color: var(--on-primary); font-weight: 400; }
+.topbar .brand .dot { color: var(--on-primary); }
+.topbar .who { color: var(--on-primary); opacity: .92; }
+/* 각진 픽셀 + 코코아 아웃라인 */
+.card, .stat, .window, .ach-card, .set-row, .cz-card, .cz-stage, .shop-item, .shop-stage {
+  border: 2px solid var(--on-surface); box-shadow: var(--ambient);
+}
+.card, .cta, .btn, .fab, .input, textarea, select, .seg .opt, .tag, .chip, .badge, .window, .toast,
+.stat, .av, .pet-row-char, .cz-toggle, .cz-chip, .cz-breed, .shop-item, .shop-btn, .day-bar, .nametag, .mini-chip {
+  border-radius: 0 !important;
+}
+.btn, .cta { border: 2px solid var(--on-surface); }
+.input, textarea, select { border: 2px solid var(--surface-shadow); background: var(--surface); }
+.input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+.tabbar { background: var(--surface); border-top: 2px solid var(--surface-shadow); }
+.tabbar a.active, .tabbar a.sel, .tabbar a[data-active] { color: var(--primary-dim); }
+.chip { border: 2px solid var(--on-surface); }
+/* 지도/영상/사진은 픽셀화 제외, 강아지·아이콘만 크리스피 */
+.lp-dog, .lp-dog *, .ic, .has-char img { image-rendering: pixelated; }
+
+/* ---------------- Dog customizer (강아지 꾸미기) ---------------- */
+.cz-card { padding: 14px; }
+.cz-title { font-family: var(--font-head); font-size: 1rem; margin-bottom: 10px; }
+.cz-root { display: flex; flex-direction: column; gap: 12px; }
+.cz-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--surface-2); padding: 14px; }
+.cz-preview { width: 132px; height: 132px; image-rendering: pixelated; }
+.cz-preview svg { width: 100%; height: 100%; }
+.cz-pose { justify-content: center; }
+.cz-toggle { width: 100%; text-align: left; font-weight: 400; font-family: var(--font); font-size: .92rem; color: var(--on-surface);
+  background: var(--secondary-container); border: 2px solid var(--on-surface); padding: 10px 14px; cursor: pointer; box-shadow: 3px 3px 0 var(--secondary-shadow); }
+.cz-toggle:active { transform: translate(3px, 3px); box-shadow: none; }
+.cz-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cz-breed { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px; background: var(--surface-2); border: 2px solid transparent; cursor: pointer; }
+.cz-breed svg { width: 46px; height: 46px; image-rendering: pixelated; }
+.cz-breed small { font-size: .66rem; color: var(--on-surface-var); }
+.cz-breed.on { border-color: var(--primary); background: var(--primary-container); }
+.cz-controls { display: flex; flex-direction: column; gap: 12px; }
+.cz-field { display: flex; flex-direction: column; gap: 6px; }
+.cz-label { font-size: .78rem; color: var(--on-surface-var); }
+.cz-row { display: flex; align-items: center; gap: 8px; }
+.cz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cz-chip { padding: 6px 11px; font-size: .78rem; background: var(--surface-2); color: var(--on-surface-var); border: 2px solid var(--on-surface); cursor: pointer; user-select: none; }
+.cz-chip.on { background: var(--primary); color: var(--on-primary); }
+.cz-sw { width: 24px; height: 24px; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); }
+.cz-sw.on { box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px var(--primary); }
+.cz-color { width: 34px; height: 30px; border: 2px solid var(--on-surface); background: none; cursor: pointer; padding: 0; flex: none; }
+
+/* ---------------- Shop (상점) ---------------- */
+.row.between { justify-content: space-between; align-items: center; }
+.shop-balance { font-family: var(--font-head); font-size: .95rem; background: var(--secondary-container); color: var(--on-secondary-container); padding: 6px 14px; border: 2px solid var(--on-surface); }
+.shop-entry .strong { font-family: var(--font-head); font-size: 1rem; }
+.shop-stage { display: flex; justify-content: center; padding: 16px; background: var(--surface-2); }
+.shop-preview { width: 140px; height: 140px; image-rendering: pixelated; }
+.shop-preview svg { width: 100%; height: 100%; }
+.share-btn { width: 100%; }
+.shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.shop-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; background: var(--surface); }
+.shop-item.equipped { outline: 3px solid var(--primary); }
+.shop-thumb { width: 60px; height: 60px; image-rendering: pixelated; }
+.shop-thumb svg { width: 100%; height: 100%; }
+.shop-name { font-size: .74rem; color: var(--on-surface-var); text-align: center; }
+.shop-btn { width: 100%; font-family: var(--font-head); font-size: .8rem; border: 2px solid var(--on-surface); cursor: pointer; padding: 6px 4px; color: var(--on-primary); background: var(--primary); box-shadow: 0 3px 0 var(--primary-shadow); }
+.shop-btn:active { transform: translateY(3px); box-shadow: none; }
+.shop-btn.equip { background: var(--secondary); color: var(--on-secondary-container); box-shadow: 0 3px 0 var(--secondary-shadow); }
+.shop-btn.on { background: var(--surface-3); color: var(--on-surface-var); box-shadow: 0 3px 0 var(--surface-shadow); }
+.shop-btn.locked, .shop-btn:disabled { background: var(--surface-2); color: var(--on-surface-var); box-shadow: 0 3px 0 var(--surface-shadow); cursor: not-allowed; }
+
+/* ---------------- Pin drop / auth hero ---------------- */
+.pin-btn { position: absolute; right: 14px; top: 70px; z-index: 25; font-family: var(--font-head); font-size: .85rem;
+  background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); padding: 9px 14px; box-shadow: 3px 3px 0 var(--surface-shadow); cursor: pointer; }
+.pin-btn.on { background: var(--primary); color: var(--on-primary); box-shadow: 3px 3px 0 var(--primary-shadow); }
+.coord-clear { margin-left: 8px; font-size: .7rem; border: 2px solid var(--on-surface); cursor: pointer; background: var(--surface-2); color: var(--on-surface-var); padding: 2px 8px; }
+.auth-hero { width: 132px; height: 132px; margin: 0 auto 6px; image-rendering: pixelated; }
+.auth-hero svg { width: 100%; height: 100%; }
+
+/* ---------------- Camera (W4) + Record tab media ---------------- */
+.cap-screen { display: flex; flex-direction: column; min-height: calc(100dvh - var(--header-h)); gap: 10px; }
+.cap-quest { background: var(--primary); color: var(--on-primary); font-family: var(--font-head); padding: 10px 14px; display: flex; align-items: center; gap: 6px; }
+.cap-stage { position: relative; background: #2A211C; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 240px; overflow: hidden; }
+.cap-video { width: 100%; max-height: 62vh; display: block; object-fit: cover; }
+.cap-count { position: absolute; font-family: var(--font-head); font-size: 3rem; color: #fff; text-shadow: 2px 2px 0 #000; }
+.cap-foot { padding: 0 16px 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.rec-media { margin: 4px 0; }
+.rec-media video { width: 100%; border: 2px solid var(--on-surface); background: #000; display: block; }
+
+/* W4/W5/W6 컴포넌트 픽셀 각짐 마무리 */
+.record-pill, .record-toggle, .record-toggle-opt, .record-thumb, .record-dl-btn,
+.cam-quest, .cam-close, .petdiary-card, .pd-card { border-radius: 0 !important; }
+.record-pill, .record-toggle-opt { border: 2px solid var(--on-surface); }
+.record-dl-btn { width: 100%; }
+.record-thumb video, .record-thumb img { image-rendering: auto; }
+
+/* 기록 영상: 합성 가로(16:9) 영상 크게 + 우상단 작은 다운로드 아이콘 */
+.record-video { position: relative; margin: 8px 0; }
+.record-video-frame { aspect-ratio: 16 / 9; width: 100%; background: #1A1410; border: 2px solid var(--on-surface);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: var(--ambient); }
+.record-video-frame video { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
+.record-video-loading { color: #fff; opacity: .55; }
+.record-video-dl { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; line-height: 1; font-family: var(--font-head); font-weight: 400;
+  background: var(--surface); color: var(--on-surface); border: 2px solid var(--on-surface); cursor: pointer; box-shadow: 2px 2px 0 var(--surface-shadow); }
+.record-video-dl:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ---------------- Quest page (LP-12, 지도 없는 퀘스트 스택 + 산책 종료) ---------------- */
+.quest-page { padding-bottom: 112px; }
+.quest-context { display: flex; align-items: center; gap: 8px; color: var(--on-surface-var); font-size: .85rem; }
+.quest-stack { display: flex; flex-direction: column; gap: 10px; }
+.quest-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border: 2px solid var(--on-surface); box-shadow: var(--ambient); }
+.quest-card.done { opacity: .55; }
+.quest-card-body { flex: 1; min-width: 0; }
+.quest-card-title { font-family: var(--font-head); font-size: .95rem; }
+.quest-card-hint { font-size: .75rem; color: var(--on-surface-var); margin-top: 2px; }
+.quest-shoot { flex: none; }
+.quest-free { width: 100%; margin-top: 2px; }
+.quest-done { color: var(--success-shadow); font-size: .8rem; display: inline-flex; align-items: center; gap: 4px; }
+.end-dock { position: fixed; left: 0; right: 0; bottom: 0; max-width: var(--maxw); margin: 0 auto; padding: 10px 0 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; background: linear-gradient(transparent, var(--bg) 40%); z-index: 30; }
+.end-call { width: 60px; height: 60px; border: 2px solid var(--on-surface); background: var(--danger); color: #fff;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 0 var(--danger-shadow); }
+.end-call:active { transform: translateY(4px); box-shadow: none; }
+.end-call .ic { width: 26px; height: 26px; }
+.end-label { font-size: .75rem; color: var(--on-surface-var); }
+
+/* === W6: pet-diary === */
+/* 펫일기 작성/상세/표시카드. 디자인 시스템(입체 칩/세그/버튼) 위에 화면 전용 셰이프만 추가.
+   외곽선 금지 — 분리는 면색+하단 솔리드 그림자(입체)로만. 인라인 스타일 금지. */
+
+/* 작성/편집 폼 래퍼 */
+.diary-edit { padding-bottom: 8px; }
+.diary-form .field > label { color: var(--on-surface-var); }
+
+/* 기분 5단계 (한 개 선택) — 입체 세그/칩 무드 */
+.mood-row { display: flex; gap: 8px; }
+.mood-opt {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 4px; border: none; cursor: pointer;
+  border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 var(--press) 0 var(--surface-shadow);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast),
+    background var(--dur-fast), color var(--dur-fast);
+}
+.mood-opt:active { transform: translateY(var(--press)); box-shadow: none; }
+.mood-opt.sel {
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+  box-shadow: 0 var(--press) 0 var(--tertiary-shadow);
+  transform: translateY(-1px);
+}
+.mood-face { font-size: 1.7rem; line-height: 1; display: inline-flex; }
+.mood-face-lg { font-size: 2.6rem; }
+.mood-label { font-size: .76rem; font-weight: 800; }
+
+/* 활동 칩 (다중 선택) — 디자인 시스템 .tags .tag 에 아이콘 정렬만 추가 */
+.diary-chips .tag { display: inline-flex; align-items: center; gap: 6px; }
+.diary-chips .tag .ic { font-size: 1.05rem; }
+
+/* 상세 카드 */
+.diary-detail-card { display: flex; flex-direction: column; gap: 14px; }
+.diary-detail-head { align-items: center; gap: 14px; }
+.diary-detail-head .mood-face-lg { color: var(--primary); }
+.diary-detail-mood { font-size: 1.15rem; }
+.diary-detail-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.diary-act {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .82rem; font-weight: 800;
+  box-shadow: 0 var(--press) 0 var(--secondary-shadow);
+}
+.diary-detail-text { margin: 0; font-weight: 600; white-space: pre-wrap; }
+.diary-actions { margin-top: 2px; }
+.diary-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* 표시 카드 (이미지4) — 기분 이모지 + 활동 아이콘 줄 + 텍스트 1~2줄 */
+.pet-diary-card { display: flex; align-items: center; gap: 14px; }
+.pet-diary-mood {
+  flex: none; width: 52px; height: 52px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); font-size: 1.9rem;
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+}
+.pet-diary-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pet-diary-acts { row-gap: 6px; }
+.pet-diary-act {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-pill);
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  font-size: .95rem;
+}
+.pet-diary-text {
+  margin: 0; color: var(--on-surface-var); font-weight: 600; font-size: .92rem;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pet-diary-chev { flex: none; color: var(--on-surface-var); font-size: 1.2rem; }
+
+/* === W4: camera === */
+/* 가로(landscape) 전체화면 카메라 촬영. 검정 배경 + cover 프리뷰 + 입체 촬영 버튼. */
+.camera-screen {
+  position: fixed; inset: 0; z-index: 55; /* 헤더(30)/스크림(40) 위, 토스트(60) 아래 */
+  background: #000; color: #fff; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.camera-screen .cam-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; background: #000;
+}
+.camera-screen .cam-preview {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.camera-screen .cam-stage.denied { background: #161210; }
+.camera-screen .cam-error {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  color: rgba(255,255,255,.9); font-weight: 700; padding: 24px; text-align: center;
+}
+.camera-screen .cam-error .ic { font-size: 2.4rem; color: var(--primary); }
+
+/* 상단 바: (좌) 퀘스트 한 줄 / (우) 닫기 X */
+.camera-screen .cam-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 0;
+}
+.camera-screen .cam-quest {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 70%;
+  padding: 9px 14px; border-radius: var(--r-pill);
+  background: rgba(0,0,0,.42); color: #fff; font-weight: 800; font-size: .95rem;
+  box-shadow: var(--ambient);
+}
+.camera-screen .cam-quest .ic { color: var(--tertiary); flex: none; }
+.camera-screen .cam-quest .cam-quest-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.camera-screen .cam-close {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.42); color: #fff; border: none; cursor: pointer;
+  font-size: 1.3rem; box-shadow: var(--ambient);
+  transition: transform var(--dur-fast) var(--spring);
+}
+.camera-screen .cam-close:active { transform: scale(.92); }
+
+/* 하단 바: 중앙 촬영 버튼(입체) */
+.camera-screen .cam-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 16px calc(env(safe-area-inset-bottom) + 22px);
+}
+.camera-screen .cam-shoot {
+  width: 76px; height: 76px; border-radius: 50%; border: none; cursor: pointer;
+  background: #fff; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 var(--depth-cta) 0 var(--surface-shadow), var(--ambient-lg);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.camera-screen .cam-shoot:active {
+  transform: translateY(calc(var(--depth-cta) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--surface-shadow), var(--ambient);
+}
+.camera-screen .cam-shoot:disabled { opacity: .45; box-shadow: none; cursor: default; }
+.camera-screen .cam-shoot .cam-shoot-dot {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--primary); transition: transform var(--dur-fast) var(--spring);
+}
+.camera-screen .cam-shoot.recording .cam-shoot-dot {
+  background: var(--danger); transform: scale(.55); border-radius: 14px;
+}
+
+/* 촬영 카운트다운(2.0 → 0.0) */
+.camera-screen .cam-count {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 3.4rem; font-weight: 900; color: #fff; z-index: 3;
+  font-variant-numeric: tabular-nums; text-shadow: 0 2px 12px rgba(0,0,0,.5);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-screen .cam-shoot,
+  .camera-screen .cam-shoot .cam-shoot-dot,
+  .camera-screen .cam-close { transition: none; }
+}
+
+/* === W5: record-tab === */
+/* 기록 탭(#/diary): 둥근 [기록] 칩 토글 + 영상 썸네일 + 펫일기 + 좌우 스와이프.
+   외곽선 금지 — 분리는 면색 + 하단 솔리드 그림자(입체)로만. 인라인 스타일 금지(동적 width 제외). */
+
+.record-tab { touch-action: pan-y; padding-bottom: 8px; }
+
+/* 상단 바 */
+.record-topbar { align-items: center; gap: 10px; }
+.record-pill-wrap { position: relative; }
+
+/* 둥근 [기록] 칩 — 눌리는 입체 pill */
+.record-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border: none; cursor: pointer;
+  border-radius: var(--r-pill);
+  background: var(--primary-container); color: var(--on-primary-container);
+  font-weight: 800; font-size: .92rem;
+  box-shadow: 0 var(--depth) 0 var(--primary-shadow), var(--ambient);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+}
+.record-pill:active {
+  transform: translateY(calc(var(--depth) - var(--press)));
+  box-shadow: 0 var(--press) 0 var(--primary-shadow), var(--ambient);
+}
+.record-pill-caret { transition: transform var(--dur-fast) var(--ease); }
+.record-pill[aria-expanded="true"] .record-pill-caret { transform: rotate(180deg); }
+
+.record-date { font-weight: 800; color: var(--on-surface-var); font-size: .95rem; }
+
+/* 토글 메뉴(캘린더/공유) — 칩 아래 떠오르는 입체 카드 */
+.record-toggle {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  min-width: 148px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: 0 3px 0 var(--surface-shadow), var(--ambient-lg);
+}
+.record-toggle.hidden { display: none; }
+.record-toggle-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border: none; cursor: pointer;
+  border-radius: var(--r-sm);
+  background: transparent; color: var(--on-surface);
+  font-weight: 700; font-size: .9rem; text-align: left;
+}
+.record-toggle-opt:active { background: var(--surface-2); }
+.record-toggle-opt.is-disabled { color: var(--on-surface-var); opacity: .5; cursor: not-allowed; }
+.record-toggle-opt.is-disabled:active { background: transparent; }
+
+/* 섹션 */
+.record-section { margin-top: 6px; }
+.record-loading { padding: 8px 2px; }
+.record-partner-title { margin-top: 16px; }
+.record-empty { padding: 16px 2px; }
+
+/* 영상 썸네일 스트립 — 가로 스크롤 */
+.record-thumb-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 0 6px; }
+.record-thumb {
+  flex: none; width: 112px; height: 150px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md); overflow: hidden;
+  background: var(--surface-2); color: var(--on-surface-var);
+  box-shadow: 0 2px 0 var(--surface-shadow), var(--ambient);
+}
+.record-thumb-fallback { font-size: 1.8rem; }
+.record-thumb-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+
+/* 펫일기 빈 상태 */
+.record-diary-empty { padding: 28px 16px; }
+.record-diary-empty .btn { margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; }
+
+/* 캘린더 팝업(centerModal 내부) */
+.record-cal { display: flex; flex-direction: column; gap: 12px; }
+.record-cal-head { align-items: center; }
+.record-cal-title { font-weight: 800; font-size: 1rem; }
+.record-cal-nav {
+  width: 34px; height: 34px; padding: 0; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--on-surface);
+  box-shadow: 0 2px 0 var(--surface-shadow);
+}
+.record-cal-nav:active { transform: translateY(2px); box-shadow: none; }
+.record-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.record-cal-dow { text-align: center; font-size: .72rem; font-weight: 800; color: var(--on-surface-var); padding: 2px 0; }
+.record-cal-cell {
+  aspect-ratio: 1 / 1; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); font-size: .85rem; font-weight: 700;
+  background: var(--surface-2); color: var(--on-surface);
+}
+.record-cal-cell:active { transform: translateY(1px); }
+.record-cal-cell.is-empty { background: transparent; cursor: default; pointer-events: none; }
+.record-cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--secondary); }
+.record-cal-cell.is-selected { background: var(--primary); color: var(--on-primary); box-shadow: 0 2px 0 var(--primary-shadow); }

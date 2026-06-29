@@ -8,7 +8,21 @@ from sqlalchemy.orm import Session
 
 from ..api.pets import _to_res
 from ..deps import get_current_user, get_db
-from ..models import Pet, Room, RoomMember, User, WalkSession, utcnow
+from ..models import (
+    Clip,
+    MatchLog,
+    MatchRequest,
+    MatchSession,
+    Pet,
+    Reaction,
+    Record,
+    Room,
+    RoomMember,
+    User,
+    UserItem,
+    WalkSession,
+    utcnow,
+)
 from ..schemas import DemoLocation, DemoSetupReq, DemoSetupRes
 from ..services import room as room_svc
 
@@ -132,6 +146,38 @@ def _ensure_demo_room(db: Session, user: User, mock: User) -> Room:
     if not _room_has_member(db, room.id, mock.id):
         room_svc.join_room(db, room.id, mock.id)
     return room
+
+
+@router.post("/demo/reset")
+def reset_demo(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """누적된 데모 데이터(목업 망고·더미 초코/콩 + 그 세션·기록·클립)를 일괄 정리한다.
+
+    실유저(게스트·카카오)의 기록은 건드리지 않는다. 정리 후 더미를 깨끗하게 재시드한다.
+    """
+    demo_users = (
+        db.query(User)
+        .filter(User.auth_token.like("demo-mock:%") | User.auth_token.like("demo-dummy:%"))
+        .all()
+    )
+    ids = [u.id for u in demo_users]
+    removed = 0
+    if ids:
+        db.query(Clip).filter(Clip.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(Reaction).filter(Reaction.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(Record).filter(Record.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(MatchLog).filter(MatchLog.user_a_id.in_(ids) | MatchLog.user_b_id.in_(ids)).delete(synchronize_session=False)
+        db.query(MatchSession).filter(MatchSession.user_a_id.in_(ids) | MatchSession.user_b_id.in_(ids)).delete(synchronize_session=False)
+        db.query(MatchRequest).filter(MatchRequest.requester_id.in_(ids) | MatchRequest.receiver_id.in_(ids)).delete(synchronize_session=False)
+        db.query(RoomMember).filter(RoomMember.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(WalkSession).filter(WalkSession.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(UserItem).filter(UserItem.user_id.in_(ids)).delete(synchronize_session=False)
+        db.query(Pet).filter(Pet.user_id.in_(ids)).delete(synchronize_session=False)
+        removed = db.query(User).filter(User.id.in_(ids)).delete(synchronize_session=False)
+        db.commit()
+
+    from .. import seed  # 더미를 깨끗하게 재생성
+    seed.run()
+    return {"removed_demo_users": removed, "reseeded": True}
 
 
 @router.post("/demo/setup", response_model=DemoSetupRes)

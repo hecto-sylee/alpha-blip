@@ -21,7 +21,11 @@ function pickMime() {
 export async function openCamera() {
   if (!mediaSupported()) throw "unsupported";
   try {
-    return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    // 가로(16:9) 촬영 유도 + 후면 카메라 선호. 합성도 640×360 가로로 정규화됨.
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, aspectRatio: { ideal: 16 / 9 } },
+      audio: true,
+    });
   } catch (e) {
     if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) throw "denied";
     throw "error";

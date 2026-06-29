@@ -4,3 +4,5 @@ sqlalchemy>=2.0
 pydantic>=2
 python-multipart
 aiofiles
+imageio-ffmpeg     # 영상 합성용 ffmpeg 번들 바이너리(시스템 설치 불필요)
+psycopg2-binary    # 클라우드 Postgres 전환 시(LETSPAW_DATABASE_URL)

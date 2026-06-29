@@ -1,14 +1,18 @@
 """Records (F-10): diary/room walk entries with linked clips + reaction aggregates."""
 from __future__ import annotations
 
+import os
 from collections import Counter
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from .. import merge as merge_svc
+from ..database import SessionLocal
 from ..deps import get_current_user, get_db
-from ..models import Clip, DailyQuest, Reaction, Record, User
+from ..models import Clip, DailyQuest, MatchSession, Reaction, Record, User
 from ..schemas import (
     ClipOut,
     ReactionAgg,
@@ -20,6 +24,7 @@ from ..schemas import (
 )
 from ..services import achievements as ach_svc
 from ..services import leagues as league_svc
+from ..services import points as points_svc
 from ..services import room as room_svc
 from ..utils.events import log_event
 
@@ -44,6 +49,7 @@ def serialize_record(db: Session, rec: Record) -> RecordOut:
         user_id=rec.user_id,
         visibility=rec.visibility,
         room_id=rec.room_id,
+        match_session_id=rec.match_session_id,
         walked_at=rec.walked_at,
         duration_minutes=rec.duration_minutes,
         distance_meters=rec.distance_meters,
@@ -62,13 +68,90 @@ def serialize_record(db: Session, rec: Record) -> RecordOut:
             for c in clips
         ],
         reactions=[ReactionAgg(emoji=e, count=n) for e, n in counts.items()],
+        merged_ready=bool(rec.merged_path),
         created_at=rec.created_at,
     )
+
+
+UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+MERGED_DIR = os.path.join(UPLOADS_DIR, "merged")
+
+
+def _build_dual(db: Session, session: MatchSession, out: str) -> bool:
+    """매칭 세션 두 유저 클립을 퀘스트별로 vstack(상=user_a/하=user_b). 파트너 칸이 전혀 없으면 False(단일 폴백)."""
+    rec_ids = [r.id for r in db.query(Record).filter(Record.match_session_id == session.id).all()]
+    if not rec_ids:
+        return False
+    clips = (
+        db.query(Clip)
+        .filter(Clip.record_id.in_(rec_ids), Clip.status == "active")
+        .order_by(Clip.order.asc(), Clip.created_at.asc())
+        .all()
+    )
+    a_id = session.user_a_id
+    b_id = session.user_b_id
+    missions: list[str] = []
+    by_m: dict[str, dict] = {}
+    for c in clips:
+        key = c.mission_id or f"solo:{c.id}"
+        if key not in by_m:
+            by_m[key] = {"top": None, "bottom": None}
+            missions.append(key)
+        path = os.path.join(UPLOADS_DIR, f"{c.id}.webm")
+        if not os.path.exists(path):
+            continue
+        slot = "top" if c.user_id == a_id else "bottom" if c.user_id == b_id else None
+        if slot and not by_m[key][slot]:
+            by_m[key][slot] = path
+        elif not by_m[key]["top"]:
+            by_m[key]["top"] = path
+        elif not by_m[key]["bottom"]:
+            by_m[key]["bottom"] = path
+    scenes = [by_m[m] for m in missions]
+    if not any(s["top"] and s["bottom"] for s in scenes):
+        return False  # 상대 클립이 전혀 없음(데모 등) → 듀얼 의미 없으니 단일로
+    merge_svc.build_dual_video(scenes, out)
+    return True
+
+
+def _merge_record_task(record_id: str) -> None:
+    """BackgroundTask: 기록 클립들을 1개 mp4로 합성. 매칭=듀얼 vstack, 솔로=단일 concat."""
+    db = SessionLocal()
+    try:
+        rec = db.get(Record, record_id)
+        if rec is None:
+            return
+        out = os.path.join(MERGED_DIR, f"{record_id}.mp4")
+        # 매칭(듀얼): 두 유저 클립을 퀘스트별 vstack. 파트너 클립 없으면 단일 폴백.
+        if rec.match_session_id:
+            session = db.get(MatchSession, rec.match_session_id)
+            if session is not None and _build_dual(db, session, out):
+                rec.merged_path = os.path.relpath(out, UPLOADS_DIR)
+                db.commit()
+                return
+        clips = (
+            db.query(Clip)
+            .filter(Clip.record_id == record_id, Clip.status == "active")
+            .order_by(Clip.order.asc(), Clip.created_at.asc())
+            .all()
+        )
+        paths = [os.path.join(UPLOADS_DIR, f"{c.id}.webm") for c in clips]
+        paths = [p for p in paths if os.path.exists(p)]
+        if not paths:
+            return
+        merge_svc.build_record_video(paths, out)
+        rec.merged_path = os.path.relpath(out, UPLOADS_DIR)  # "merged/{id}.mp4"
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 @router.post("/records", response_model=RecordCreateRes, status_code=201)
 def create_record(
     body: RecordCreateReq,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RecordCreateRes:
@@ -125,8 +208,32 @@ def create_record(
         streak=ach_svc.compute_progress(db, user.id)["streak"],
         when=body.walked_at,
     )
+    points_awarded = points_svc.award_for_record(
+        db, user, clip_count=len(body.clip_ids), is_match=body.match_session_id is not None
+    )
     db.commit()
-    return RecordCreateRes(record_id=rec.id, unlocked=unlocked)
+    if body.clip_ids:  # 클립이 있으면 백그라운드로 1개 영상 합성
+        background_tasks.add_task(_merge_record_task, rec.id)
+    return RecordCreateRes(
+        record_id=rec.id, unlocked=unlocked,
+        points_awarded=points_awarded, points=user.points,
+    )
+
+
+@router.get("/records/{record_id}/video/download")
+def download_record_video(record_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rec = db.get(Record, record_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="record not found")
+    if rec.user_id != user.id and rec.visibility != "room":
+        raise HTTPException(status_code=403, detail="not allowed")
+    if not rec.merged_path:
+        raise HTTPException(status_code=409, detail="아직 합성 중이거나 영상이 없어요")
+    abs_path = os.path.join(UPLOADS_DIR, rec.merged_path)
+    if not os.path.exists(abs_path):
+        raise HTTPException(status_code=404, detail="video missing")
+    fname = f"letspaw_{rec.walked_at or 'walk'}.mp4"
+    return FileResponse(abs_path, media_type="video/mp4", filename=fname)
 
 
 @router.get("/records", response_model=RecordListRes)

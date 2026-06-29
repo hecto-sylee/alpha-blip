@@ -5,15 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user, get_db
-from ..models import MatchLog, MatchRequest, MatchSession, Pet, User
+from ..models import Clip, MatchLog, MatchRequest, MatchSession, Pet, Record, User
 from ..schemas import (
     AcceptRes,
+    ClipOut,
     IncomingRequest,
     IncomingRes,
     MatchEndReq,
     MatchEndRes,
+    MatchRecordOut,
     MatchRequestReq,
     MatchRequestRes,
+    MatchSessionRecordsRes,
     MatchSessionRes,
 )
 from ..services import achievements as ach_svc
@@ -118,6 +121,28 @@ def cancel(request_id: str, user: User = Depends(get_current_user), db: Session 
     return {"ok": True}
 
 
+def _session_res(session: MatchSession, user: User, db: Session) -> MatchSessionRes:
+    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
+    partner_pet_id = session.pet_b_id if user.id == session.user_a_id else session.pet_a_id
+    partner = db.get(User, partner_id)
+    pet = db.get(Pet, partner_pet_id) if partner_pet_id else None
+    i_met = session.a_met if user.id == session.user_a_id else session.b_met
+    return MatchSessionRes(
+        id=session.id,
+        status=session.status,
+        partner={
+            "nickname": partner.nickname if partner else None,
+            "pet": {
+                "id": pet.id, "name": pet.name, "breed": pet.breed, "size": pet.size,
+                "personality_tags": loads_list(pet.personality_tags),
+            } if pet else None,
+        },
+        started_at=session.started_at,
+        a_met=session.a_met, b_met=session.b_met,
+        both_met=bool(session.a_met and session.b_met), i_met=bool(i_met),
+    )
+
+
 @router.get("/match-sessions/{session_id}", response_model=MatchSessionRes)
 def get_session(session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MatchSessionRes:
     session = db.get(MatchSession, session_id)
@@ -125,27 +150,84 @@ def get_session(session_id: str, user: User = Depends(get_current_user), db: Ses
         raise HTTPException(status_code=404, detail="session not found")
     if user.id not in (session.user_a_id, session.user_b_id):
         raise HTTPException(status_code=403, detail="not a participant")
+    return _session_res(session, user, db)
+
+
+@router.post("/match-sessions/{session_id}/met", response_model=MatchSessionRes)
+def mark_met(session_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MatchSessionRes:
+    """만남 게이트: 내 met 표시. 양쪽 met이면 status=walking. (데모 mock 상대는 자동 met)"""
+    session = db.get(MatchSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if user.id not in (session.user_a_id, session.user_b_id):
+        raise HTTPException(status_code=403, detail="not a participant")
+    if user.id == session.user_a_id:
+        session.a_met = True
+    else:
+        session.b_met = True
     partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
-    partner_pet_id = session.pet_b_id if user.id == session.user_a_id else session.pet_a_id
     partner = db.get(User, partner_id)
-    pet = db.get(Pet, partner_pet_id) if partner_pet_id else None
-    return MatchSessionRes(
-        id=session.id,
-        status=session.status,
-        partner={
-            "nickname": partner.nickname if partner else None,
-            "pet": {
-                "id": pet.id,
-                "name": pet.name,
-                "breed": pet.breed,
-                "size": pet.size,
-                "personality_tags": loads_list(pet.personality_tags),
-            }
-            if pet
-            else None,
-        },
-        started_at=session.started_at,
-    )
+    if partner and partner.is_mock:  # 데모 mock 상대는 즉시 만남 확정
+        if partner_id == session.user_a_id:
+            session.a_met = True
+        else:
+            session.b_met = True
+    if session.a_met and session.b_met and session.status == "active":
+        session.status = "walking"
+    db.commit()
+    return _session_res(session, user, db)
+
+
+@router.get("/match-sessions/{session_id}/records", response_model=MatchSessionRecordsRes)
+def get_session_records(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MatchSessionRecordsRes:
+    """매칭 산책 양측의 기록 영상 조회 (W5). 참여자 전용.
+    세션에 연결된 Record 를 user 별로 분리해 각 active 클립을 직렬화한다."""
+    session = db.get(MatchSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if user.id not in (session.user_a_id, session.user_b_id):
+        raise HTTPException(status_code=403, detail="not a participant")
+    partner_id = session.user_b_id if user.id == session.user_a_id else session.user_a_id
+
+    def records_for(uid: str) -> list[MatchRecordOut]:
+        recs = (
+            db.query(Record)
+            .filter(Record.match_session_id == session_id, Record.user_id == uid)
+            .order_by(Record.created_at)
+            .all()
+        )
+        out: list[MatchRecordOut] = []
+        for rec in recs:
+            clips = (
+                db.query(Clip)
+                .filter(Clip.record_id == rec.id, Clip.status == "active")
+                .order_by(Clip.order)
+                .all()
+            )
+            out.append(
+                MatchRecordOut(
+                    record_id=rec.id,
+                    walked_at=rec.walked_at,
+                    clips=[
+                        ClipOut(
+                            id=c.id,
+                            stream_url=f"/api/clips/{c.id}/stream",
+                            duration_ms=c.duration_ms,
+                            order=c.order,
+                            mission_id=c.mission_id,
+                            status=c.status,
+                        )
+                        for c in clips
+                    ],
+                )
+            )
+        return out
+
+    return MatchSessionRecordsRes(mine=records_for(user.id), partner=records_for(partner_id))
 
 
 @router.post("/match-sessions/{session_id}/end", response_model=MatchEndRes)

@@ -19,12 +19,14 @@ from .api import (
     leagues,
     matches,
     nearby,
+    pet_diary,
     pets,
     privacy,
     quests,
     reactions,
     records,
     rooms,
+    shop,
     walks,
 )
 from .database import init_db
@@ -41,7 +43,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="blip MVP", lifespan=lifespan)
+app = FastAPI(title="LetsPaw MVP", lifespan=lifespan)
 
 
 # Build-less ESM SPA: the static module graph (app.js + screens/*) and the
@@ -75,7 +77,7 @@ async def validation_exc_handler(request: Request, exc: RequestValidationError):
 
 
 # API routers (prefix /api)
-for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues):
+for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop):
     app.include_router(r.router, prefix="/api")
 
 # Static assets

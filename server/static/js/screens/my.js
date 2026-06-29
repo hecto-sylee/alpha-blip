@@ -9,12 +9,11 @@ import { petCharacterEl } from "../character.js";
 export async function myScreen() {
   setTab("my");
   loading();
-  let me = null, records = [], ach = null;
+  let me = null, records = [];
   try {
     me = await api.get("/auth/me");
     records = (await api.get("/records")).records || [];
   } catch (e) { toast(e.message || "불러오기 실패", "err"); }
-  try { ach = await api.get("/achievements"); } catch (_) {}
 
   const pet = me?.pets?.[0];
   const diary = records.filter((r) => r.visibility === "diary");
@@ -33,21 +32,24 @@ export async function myScreen() {
         ]),
       ]),
 
+      el("div.card.tappable.shop-entry", { onclick: () => navigate("/shop") }, [
+        el("div.row.between", {}, [
+          el("span.strong", { text: `🦴 ${me?.points ?? 0} 포인트` }),
+          el("span.chev", { text: "상점 가기 ›" }),
+        ]),
+      ]),
+
       el("div.stats", {}, [
         statCard(String(diary.length), "산책 기록"),
         statCard((totalDist / 1000).toFixed(1) + "km", "누적 거리"),
         statCard(String((me?.pets || []).length), "반려동물"),
       ]),
 
-      achievementsCard(ach),
-
       el("div.card", {}, [
         pet
           ? linkRow("dog", "반려동물 관리", () => navigate("/pets"))
           : linkRow("plus", "반려동물 등록", () => navigate("/onboard-pet")),
-        linkRow("award", "업적", () => navigate("/achievements")),
         linkRow("lock", "개인정보 보호 설정", () => navigate("/settings")),
-        linkRow("users", "내 방", () => navigate("/rooms")),
       ]),
 
       el("button.btn.danger", { id: "logout", text: "로그아웃", onclick: doLogout }),
@@ -57,32 +59,6 @@ export async function myScreen() {
 
 function statCard(v, k) { return el("div.stat", {}, [el("div.v", { text: v }), el("div.k", { text: k })]); }
 
-function achievementsCard(ach) {
-  const summary = ach?.summary;
-  const items = ach?.achievements || [];
-  const unlocked = items.filter((a) => a.unlocked);
-  // 가장 최근에 달성한 뱃지 우선, 없으면 다음 목표(진행도 높은 잠금 뱃지) 미리보기
-  const preview = unlocked.length
-    ? unlocked.slice(-6).reverse()
-    : items
-        .filter((a) => !a.unlocked && a.value > 0)
-        .sort((a, b) => b.value / b.threshold - a.value / a.threshold)
-        .slice(0, 6);
-  const count = summary ? `${summary.unlocked_count}/${summary.total_count}` : "—";
-  const sub = unlocked.length ? `${count} 뱃지 달성` : "첫 산책으로 뱃지를 모아보세요";
-
-  return el("div.card.tappable.ach-card", { onclick: () => navigate("/achievements") }, [
-    el("div.ach-card-head", {}, [
-      el("span.ach-card-title", {}, [icon("award"), " 업적"]),
-      el("span.spacer"),
-      el("span.ach-card-count", { text: count }),
-    ]),
-    el("div.ach-card-sub", { text: sub }),
-    el("div.ach-card-strip", {}, preview.length
-      ? preview.map((a) => el("span.ach-card-emoji" + (a.unlocked ? "" : ".dim"), { text: a.emoji, title: a.name }))
-      : [el("span.ach-card-emoji.dim", {}, [icon("paw-print")])]),
-  ]);
-}
 function linkRow(ic, label, onclick) {
   return el("div.list-link", { onclick }, [icon(ic), el("span.grow.strong", { text: label }), el("span.chev", { text: "›" })]);
 }
@@ -177,6 +153,23 @@ export async function settingsScreen() {
         el("div.h2", { text: "차단 목록" }),
         el("div.row", {}, [blockInput, blockBtn]),
         blockList,
+      ]),
+
+      el("div.card", {}, [
+        el("div.h2", { text: "데모 데이터" }),
+        el("p.sub", { text: "쌓인 더미·목업 강아지와 그 기록을 정리해요. 내 기록은 유지됩니다." }),
+        el("button.btn.danger", {
+          text: "데모 데이터 정리",
+          onclick: async (e) => {
+            if (!confirm("더미·목업 데모 데이터를 정리할까요? (내 기록은 유지)")) return;
+            const btn = e.currentTarget; btn.disabled = true;
+            try {
+              const r = await api.post("/demo/reset", {});
+              toast(`데모 데이터를 정리했어요 (${r.removed_demo_users}명 삭제)`, "ok");
+            } catch (err) { toast(err.message || "정리 실패", "err"); }
+            finally { btn.disabled = false; }
+          },
+        }),
       ]),
     ])
   );

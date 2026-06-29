@@ -18,6 +18,35 @@ class GuestSignupRes(BaseModel):
     auth_token: str
 
 
+class LoginReq(BaseModel):
+    login_id: str
+    nickname: str | None = None
+
+
+class LoginRes(BaseModel):
+    user_id: str
+    auth_token: str
+    nickname: str
+    is_new: bool = False
+
+
+class KakaoLoginReq(BaseModel):
+    code: str
+    redirect_uri: str | None = None
+
+
+class KakaoLoginRes(BaseModel):
+    user_id: str
+    auth_token: str
+    nickname: str
+    is_new: bool = False
+
+
+class KakaoUrlRes(BaseModel):
+    enabled: bool = False
+    authorize_url: str | None = None
+
+
 class PetSummary(BaseModel):
     id: str
     name: str
@@ -25,12 +54,14 @@ class PetSummary(BaseModel):
     photo_url: str | None = None
     size: str | None = None
     personality_tags: list[str] = []
+    appearance: dict | None = None  # 픽셀 외형/커마(마커·아바타 렌더용)
 
 
 class MeRes(BaseModel):
     id: str
     nickname: str
     profile_image_url: str | None = None
+    points: int = 0
     pets: list[PetSummary] = []
 
 
@@ -51,6 +82,7 @@ class PetCreateReq(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] | None = None
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetUpdateReq(BaseModel):
@@ -67,6 +99,7 @@ class PetUpdateReq(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] | None = None
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetCreateRes(BaseModel):
@@ -88,6 +121,7 @@ class PetRes(BaseModel):
     walk_style: str | None = None
     preferred_partner_size: list[str] = []
     caution_notes: str | None = None
+    appearance: dict | None = None  # 픽셀 외형/커마
 
 
 class PetListRes(BaseModel):
@@ -195,6 +229,10 @@ class MatchSessionRes(BaseModel):
     status: str
     partner: dict
     started_at: datetime
+    a_met: bool = False
+    b_met: bool = False
+    both_met: bool = False
+    i_met: bool = False  # 요청자(나) 기준 met 여부
 
 
 class MatchEndReq(BaseModel):
@@ -234,6 +272,28 @@ class RecordCreateReq(BaseModel):
 class RecordCreateRes(BaseModel):
     record_id: str
     unlocked: list[UnlockedAchievement] = []
+    points_awarded: int = 0
+    points: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Shop / points
+# ---------------------------------------------------------------------------
+class ShopBuyReq(BaseModel):
+    item_key: str
+
+
+class ShopItemRes(BaseModel):
+    key: str
+    name: str
+    slot: str
+    cost: int
+    owned: bool = False
+
+
+class ShopRes(BaseModel):
+    points: int = 0
+    items: list[ShopItemRes] = []
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +388,7 @@ class RecordOut(BaseModel):
     user_id: str
     visibility: str
     room_id: str | None = None
+    match_session_id: str | None = None  # W5: 매칭 산책 여부 판단용(기록 탭 상대영상)
     walked_at: date | None = None
     duration_minutes: int | None = None
     distance_meters: int | None = None
@@ -336,6 +397,7 @@ class RecordOut(BaseModel):
     daily_quest_id: str | None = None
     clips: list[ClipOut] = []
     reactions: list[ReactionAgg] = []
+    merged_ready: bool = False  # 합성 영상 다운로드 가능 여부
     created_at: datetime
 
 
@@ -427,3 +489,52 @@ class ReportReq(BaseModel):
     target_user_id: str
     reason: str | None = None
     context: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Pet diary (W6)
+# ---------------------------------------------------------------------------
+class PetDiaryCreateReq(BaseModel):
+    pet_id: str | None = None
+    diary_date: date
+    mood: str
+    activity_tags: list[str] = []
+    text: str | None = None
+
+
+class PetDiaryUpdateReq(BaseModel):
+    mood: str | None = None
+    activity_tags: list[str] | None = None
+    text: str | None = None
+
+
+class PetDiaryCreateRes(BaseModel):
+    pet_diary_id: str
+
+
+class PetDiaryOut(BaseModel):
+    id: str
+    pet_id: str | None = None
+    diary_date: date
+    mood: str
+    activity_tags: list[str] = []
+    text: str | None = None
+    created_at: datetime
+
+
+class PetDiaryListRes(BaseModel):
+    diaries: list[PetDiaryOut] = []
+
+
+# ---------------------------------------------------------------------------
+# Match session records (W5) — 매칭 양측 기록 영상 조회
+# ---------------------------------------------------------------------------
+class MatchRecordOut(BaseModel):
+    record_id: str
+    walked_at: date | None = None
+    clips: list[ClipOut] = []
+
+
+class MatchSessionRecordsRes(BaseModel):
+    mine: list[MatchRecordOut] = []
+    partner: list[MatchRecordOut] = []

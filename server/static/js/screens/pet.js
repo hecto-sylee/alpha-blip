@@ -3,6 +3,8 @@ import { api } from "../api.js";
 import { store } from "../store.js";
 import { el, mount, toast, setTab, icon } from "../ui.js";
 import { navigate } from "../router.js";
+import { buildCustomizer } from "../dog/customizer.js";
+import { editableAppearance, breedKey } from "../dog/params.js";
 
 const SIZES = [["small", "소형"], ["medium", "중형"], ["large", "대형"]];
 const GENDERS = [["male", "남아"], ["female", "여아"]];
@@ -29,6 +31,7 @@ export async function petScreen(params = {}) {
     is_neutered: pet?.is_neutered ?? false,
     tags: new Set(pet?.personality_tags || []),
     caution_notes: pet?.caution_notes || "",
+    appearance: editableAppearance(pet || {}),
   };
 
   const cta = el("button.cta", { id: "pet-cta", text: editId ? "저장" : "등록하고 시작하기" });
@@ -44,7 +47,19 @@ export async function petScreen(params = {}) {
   nameI.addEventListener("input", () => { state.name = nameI.value; validate(); });
 
   const breedI = el("input.input", { id: "pet-breed", value: state.breed, placeholder: "예: 푸들" });
-  breedI.addEventListener("input", () => { state.breed = breedI.value; validate(); });
+
+  // 강아지 커스터마이저(라이브 프리뷰 + 견종 갤러리 + 색/무늬/귀/다리/꼬리)
+  let lastBreedKey = breedKey(state.breed);
+  const cz = buildCustomizer(state.appearance, {
+    onChange: (a) => { state.appearance = a; },
+    onBreedPick: (key, ko) => { breedI.value = ko; state.breed = ko; lastBreedKey = key; validate(); },
+  });
+  breedI.addEventListener("input", () => {
+    state.breed = breedI.value;
+    const k = breedKey(breedI.value);
+    if (k !== lastBreedKey) { lastBreedKey = k; cz.applyBreed(k); }
+    validate();
+  });
 
   const ageI = el("input.input", { id: "pet-age", type: "number", min: "0", value: state.age_months, placeholder: "개월 수" });
   ageI.addEventListener("input", () => { state.age_months = ageI.value; });
@@ -92,6 +107,7 @@ export async function petScreen(params = {}) {
       is_neutered: state.is_neutered,
       personality_tags: [...state.tags],
       caution_notes: state.caution_notes.trim() || null,
+      appearance: cz.getAppearance(),
     };
     try {
       if (editId) {
@@ -116,6 +132,7 @@ export async function petScreen(params = {}) {
       el("p.sub", { text: "이름 · 견종 · 크기 · 성격은 꼭 필요해요." }),
       field("이름", true, nameI),
       field("견종", true, breedI),
+      el("div.cz-card", {}, [el("div.cz-title", { text: "🎨 우리 강아지 꾸미기" }), cz.el]),
       field("크기", true, sizeSeg),
       field("성격 (1개 이상)", true, tagsWrap),
       field("성별", false, genderSeg),
