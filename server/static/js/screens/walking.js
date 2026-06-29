@@ -34,8 +34,30 @@ export async function walkingScreen(_params, query = {}) {
 
   const { dailyQuestId, missions } = await ensureQuest(matchId);
 
+  // 듀얼 합성에서 내 영상 칸(top=요청자/bottom=수락자) → 촬영 시 그 위치에 프리뷰를 둔다.
+  let myHalf = null;
+  if (matchId) {
+    try { myHalf = (await api.get(`/match-sessions/${matchId}`)).my_position || null; } catch (_) {}
+  }
+  const halfQ = myHalf ? `&half=${myHalf}` : "";
+
   // --- 퀘스트 스택 ---
   let partnerMissions = new Set(); // 매칭: 상대가 이미 촬영한 미션 id (셋로그식 표시)
+
+  // 셋로그 셀: 최종 합성처럼 상(요청자)/하(수락자) 2칸. 그 사람이 찍으면 그 칸이 채워진다.
+  const paneEl = (filled, isMe) =>
+    el("div.setlog-pane" + (filled ? ".filled" : "") + (isMe ? ".me" : ""), {}, [
+      filled ? icon("check") : el("span.setlog-dot"),
+      el("span.setlog-tag", { text: isMe ? "나" : "상대" }),
+    ]);
+  const setlogCell = (myFilled, pFilled) => {
+    const topMe = myHalf !== "bottom"; // top=요청자. 내가 bottom이 아니면 위가 나(미지정도 위=나)
+    return el("div.setlog-cell", { title: "위=요청자 · 아래=수락자" }, [
+      paneEl(topMe ? myFilled : pFilled, topMe),
+      paneEl(topMe ? pFilled : myFilled, !topMe),
+    ]);
+  };
+
   const stack = el("div.quest-stack", { id: "quest-stack" });
   const renderStack = () => {
     const done = new Set(store.walkClips.map((c) => c.mission_id).filter(Boolean));
@@ -48,6 +70,7 @@ export async function walkingScreen(_params, query = {}) {
       const isDone = done.has(m.id);
       const pDone = partnerMissions.has(m.id);
       const card = el("div.quest-card" + (isDone ? ".done" : ""), { dataset: { mission: m.id } }, [
+        matchId ? setlogCell(isDone, pDone) : null,
         el("div.quest-card-body", {}, [
           el("div.quest-card-title", { text: m.title }),
           m.hint ? el("div.quest-card-hint", { text: m.hint }) : null,
@@ -59,17 +82,17 @@ export async function walkingScreen(_params, query = {}) {
           ? el("span.quest-done", {}, [icon("check"), " 완료"])
           : el("button.btn.quest-shoot", { type: "button" },
               [icon("camera"), el("span", { text: "촬영" })]),
-      ]);
+      ].filter(Boolean));
       if (!isDone) {
         card.querySelector(".quest-shoot").addEventListener("click", () =>
-          navigate(`/camera?mission=${encodeURIComponent(m.id)}&quest=${encodeURIComponent(m.title)}${matchId ? "&dual=1" : ""}`));
+          navigate(`/camera?mission=${encodeURIComponent(m.id)}&quest=${encodeURIComponent(m.title)}${matchId ? "&dual=1" + halfQ : ""}`));
       }
       stack.append(card);
     }
     // 자유 촬영(미션과 무관한 한 컷)도 허용
     stack.append(el("button.btn.secondary.quest-free", { type: "button" },
       [icon("camera"), el("span", { text: "자유 촬영" })]));
-    stack.querySelector(".quest-free").addEventListener("click", () => navigate(matchId ? "/camera?dual=1" : "/camera"));
+    stack.querySelector(".quest-free").addEventListener("click", () => navigate(matchId ? "/camera?dual=1" + halfQ : "/camera"));
   };
   renderStack();
 
@@ -115,8 +138,10 @@ export async function walkingScreen(_params, query = {}) {
         if (s && s.status === "ended" && !ending) { endWalk(true); return; }
       } catch (_) {}
       try {
-        const r = await api.get(`/match-sessions/${matchId}/records`);
-        const next = new Set((r.partner || []).flatMap((rec) => (rec.clips || []).map((c) => c.mission_id)).filter(Boolean));
+        // 상대 촬영현황은 '산책 중'에 봐야 하므로 Record(종료 후 생성)가 아니라
+        // 진행현황 엔드포인트(업로드된 Clip 기준)를 쓴다.
+        const p = await api.get(`/match-sessions/${matchId}/progress`);
+        const next = new Set(p.partner || []);
         const changed = next.size !== partnerMissions.size || [...next].some((m) => !partnerMissions.has(m));
         if (changed) { partnerMissions = next; renderStack(); }
       } catch (_) {}

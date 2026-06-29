@@ -18,7 +18,10 @@ from ..utils.geo import haversine_meters
 
 router = APIRouter(tags=["nearby"])
 
-FRESH_MINUTES = 10  # 이보다 오래 위치 갱신이 없으면(앱 닫음/옛 세션) 제외
+# 위치 갱신이 이보다 오래 없으면(앱 닫음/옛 세션) 제외. presence 의미를 살리려고
+# 짧게 둔다 — 클라이언트가 ~10초 하트비트로 갱신하므로 60초면 6틱의 여유.
+# (예전 10분 → 앱을 닫아도 유령 마커가 한참 남던 문제 해결)
+FRESH_SECONDS = 60
 
 
 def compute_nearby(
@@ -29,7 +32,7 @@ def compute_nearby(
     blocked_in = {b.blocker_id for b in db.query(Block).filter(Block.blocked_id == user.id)}
     excluded = blocked_out | blocked_in | {user.id}
 
-    cutoff = utcnow() - timedelta(minutes=FRESH_MINUTES)
+    cutoff = utcnow() - timedelta(seconds=FRESH_SECONDS)
     sessions = (
         db.query(WalkSession)
         .filter(
@@ -40,11 +43,19 @@ def compute_nearby(
             WalkSession.location_updated_at.isnot(None),
             WalkSession.location_updated_at >= cutoff,
         )
+        .order_by(WalkSession.location_updated_at.desc())
         .all()
     )
 
+    # 유저당 활성 세션이 여러 개여도(재로드/다중기기/누적) 마커는 1개만.
+    # 위에서 location_updated_at desc 정렬했으므로 처음 만난 = 가장 최근 위치.
+    seen_users: set[str] = set()
+
     dogs: list[NearbyDog] = []
     for ws in sessions:
+        if ws.user_id in seen_users:
+            continue
+        seen_users.add(ws.user_id)  # 이 유저는 가장 최근 세션으로 대표 — 나머지 세션 무시
         if ws.user_id in excluded:
             continue
         owner = db.get(User, ws.user_id)

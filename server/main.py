@@ -24,7 +24,6 @@ from .api import (
     privacy,
     quests,
     reactions,
-    realtime,
     records,
     rooms,
     shop,
@@ -78,7 +77,9 @@ async def validation_exc_handler(request: Request, exc: RequestValidationError):
 
 
 # API routers (prefix /api)
-for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop, realtime):
+# NOTE: realtime(SSE /stream)는 등록하지 않는다 — ngrok 버퍼링/무음실패/동기제너레이터가
+# 워커 스레드를 점유하는 문제로 PoC에서는 클라이언트 폴링(walk.js·home_map.js)으로 일원화.
+for r in (auth, pets, walks, nearby, matches, records, clips, quests, rooms, reactions, privacy, demo, achievements, leagues, pet_diary, shop):
     app.include_router(r.router, prefix="/api")
 
 # Static assets

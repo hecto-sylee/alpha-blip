@@ -117,6 +117,13 @@ export async function homeMapScreen() {
   }
   broadcastLocation(here.lat, here.lng, true); // 진입 시 1회 즉시 전송
 
+  // --- 하트비트: 정지·핀 상태여도 주기적으로 위치 재전송 ---
+  // 위치 broadcast는 원래 GPS 이동/진입/핀/공유토글 때만 발생 → 가만히 있거나 핀을 찍으면
+  // 서버 세션이 freshness 윈도우를 넘겨 stale 처리되어 상대 nearby에서 사라졌다.
+  // (그래서 "공유 ON인데도 토글을 몇 번 해야 잠깐 보이는" 증상) → 고정주기로 살아있음 유지.
+  poll.start("home-heartbeat", () => broadcastLocation(ctx.here.lat, ctx.here.lng, true), 10000);
+  onLeave(() => poll.stop("home-heartbeat"));
+
   // --- 핀 찍기(실제 위치 대신 수동 지정) ---
   let pinMode = false;
   let stopWatch = null; // 실행 중인 GPS watch 중지 핸들 (핀 찍으면 멈춰서 원위치로 안 튕김)
@@ -194,16 +201,11 @@ export async function homeMapScreen() {
     }
   });
 
-  // --- nearby: 서버 푸시(SSE)로 구독 — 폴링 대신 스트림 ---
-  let es = null;
-  try {
-    es = new EventSource(`/api/stream?token=${encodeURIComponent(store.token)}&radius_meters=${NEARBY_RADIUS}`);
-    es.onmessage = (e) => { try { renderNearby(ctx, JSON.parse(e.data).dogs || []); } catch (_) {} };
-    es.onerror = () => {}; // EventSource가 자동 재연결
-  } catch (_) {
-    poll.start("home-nearby", () => refreshNearby(ctx), 3000); // SSE 불가 환경 폴백
-  }
-  onLeave(() => { if (es) { try { es.close(); } catch (_) {} } poll.stop("home-nearby"); });
+  // --- nearby: 주기 폴링(walk.js와 동일 관행) ---
+  // SSE(/api/stream)는 ngrok 버퍼링·무음실패(es.onerror 삼킴)·동기 제너레이터 스레드 점유로
+  // PoC에서 불안정했다 → 폴링으로 일원화. refreshNearby가 마커를 diff 갱신한다.
+  poll.start("home-nearby", () => refreshNearby(ctx), 2500);
+  onLeave(() => poll.stop("home-nearby"));
 }
 
 // ---------------- map ----------------
@@ -268,14 +270,23 @@ async function refreshNearby(ctx) {
   renderNearby(ctx, res.dogs || []);
 }
 
-// 받은 dogs 목록으로 마커를 diff 갱신(추가/제거). SSE push + 일회성 조회 공용.
+// 받은 dogs 목록으로 마커를 diff 갱신(추가/위치갱신/제거). 폴링 공용.
 function renderNearby(ctx, dogs) {
   const myWs = store.walkId;
   const seen = new Set();
   for (const dog of dogs) {
     if (myWs && dog.walk_session_id === myWs) continue; // 혹시 본인 세션이 섞이면 제외
     seen.add(dog.walk_session_id);
-    if (ctx.markers.has(dog.walk_session_id)) continue;
+    const existing = ctx.markers.get(dog.walk_session_id);
+    if (existing) {
+      // 이미 있는 마커는 위치를 갱신한다. (예전엔 skip해서 session_id가 같으면 첫 위치에
+      //  영구 고정 → 상대가 움직이거나 핀을 옮겨도 반영 안 됨. 위치공유 토글로만 갱신되던 버그)
+      const loc = dog.approximate_location;
+      if (existing.marker && loc && typeof loc.longitude === "number") {
+        try { existing.marker.setLngLat([loc.longitude, loc.latitude]); } catch (_) {}
+      }
+      continue;
+    }
     placeDog(ctx, dog, false);
   }
   // 사라진 친구 정리(데모 마커는 유지)

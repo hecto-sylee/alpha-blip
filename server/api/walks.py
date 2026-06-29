@@ -27,6 +27,15 @@ def start_walk(
     if pet is None or pet.user_id != user.id:
         raise HTTPException(status_code=404, detail="pet not found")
 
+    # 유저당 활성 세션 1개 불변식: 새 세션 시작 전 이전 active 세션을 모두 닫는다.
+    # (재로드/다중기기/이전 산책 미종료로 누적된 세션이 nearby에 중복 마커로 뜨던 문제 방지)
+    now = utcnow()
+    for old in db.query(WalkSession).filter(
+        WalkSession.user_id == user.id, WalkSession.status == "active"
+    ):
+        old.status = "closed"
+        old.ended_at = now
+
     ws = WalkSession(
         user_id=user.id,
         pet_id=body.pet_id,

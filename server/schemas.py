@@ -234,6 +234,7 @@ class MatchSessionRes(BaseModel):
     b_met: bool = False
     both_met: bool = False
     i_met: bool = False  # 요청자(나) 기준 met 여부
+    my_position: str | None = None  # 듀얼 합성에서 내 영상 칸: "top"(요청자) | "bottom"(수락자)
     partner_lat: float | None = None  # 상대 실시간 위치(수락 후 표시)
     partner_lng: float | None = None
 
